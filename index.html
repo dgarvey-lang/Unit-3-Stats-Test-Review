@@ -607,12 +607,16 @@ function checkCode(raw, namesRaw){
 const SAVE_KEY='bestfit-v1';
 let S = null;
 let setup = {n:2, names:['','',''], len:60};
+const MIN_MINUTES = 60;           // active minutes required before a completion code appears
+const IDLE_MS = 6*60000, IDLE_TEAM_MS = 15*60000;  // clock auto-pauses after this long with no taps
+let lastActivity = Date.now(), hiddenAt = null;
+const activeMin = () => Math.floor(elapsedMs()/60000);
 function freshState(){
   return {phase:'board', players: Array.from({length:setup.n},(_,i)=>({name:setup.names[i].trim()||`Player ${i+1}`, score:0, cats:[], bonus:false})),
     turn:0, len:setup.len, start:Date.now(), pausedAt:null, pausedTotal:0, teamDone:0, teamPending:false, timeUp:false,
     stats:Object.fromEntries(CATS.map(c=>[c.id,{att:0,cor:0}])), missed:[], q:null, team:null, turns:0};
 }
-function save(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} }
+function save(){ if(S) S.lastSeen=Date.now(); try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} }
 function load(){ try{ const s=localStorage.getItem(SAVE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
 function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
 function elapsedMs(){ if(!S) return 0; const now = S.pausedAt || Date.now(); return now - S.start - S.pausedTotal; }
@@ -634,7 +638,7 @@ function renderSetup(){
         <div class="seg" id="nseg">${[1,2,3].map(n=>`<button type="button" data-n="${n}" aria-pressed="${setup.n===n}">${n===1?'Solo':n+' players'}</button>`).join('')}</div></div>
       ${[0,1,2].map(i=>`<div class="field ${i>=setup.n?'hidden':''}" id="f${i}"><label for="name${i}">Player ${i+1} name</label><input id="name${i}" maxlength="18" placeholder="Player ${i+1}" value="${esc(setup.names[i])}"></div>`).join('')}
       <div class="field"><label>Game length</label>
-        <div class="seg" id="lseg">${[30,45,60,75].map(n=>`<button type="button" data-l="${n}" aria-pressed="${setup.len===n}">${n} min</button>`).join('')}</div></div>
+        <div class="seg" id="lseg">${[60,75,90].map(n=>`<button type="button" data-l="${n}" aria-pressed="${setup.len===n}">${n} min</button>`).join('')}</div></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px"><button class="btn primary" id="go">Start the game</button></div>
       <p class="paper-note" style="margin-top:14px">Each player needs a pencil and scratch paper. One device per group.</p>
       <p class="paper-note" style="margin-top:4px"><b>Playing solo?</b> There are no steals. You score your own written answers, so be honest with yourself. Try to score in all six categories and beat 40 points.</p>
@@ -649,6 +653,7 @@ function renderSetup(){
         <li>Written-answer cards are scored by your partners, using the checklist on the screen.</li>
         <li><b>Full Spread bonus:</b> the first player to score in all six categories gets +3.</li>
         <li><b>Team Rounds</b> pop up at the 1/3 and 2/3 marks. Everyone works a full test-style problem on paper, then checks it against the key. (Solo players get a Challenge Round instead.)</li>
+        <li><b>You must play at least 60 minutes</b> to get a completion code for your teacher. The clock pauses after 6 minutes with no taps (15 in a Team Round) and when you leave this page, and paused time does not count.</li>
         <li>When the clock runs out, finish the current turn. The results screen shows which topics your group should review.</li>
       </ol>
       <div class="legend">${CATS.map(c=>`<div><span class="dot" style="background:${c.color}"></span><span><b>${c.name}</b><br><span style="color:var(--muted)">${c.blurb}</span></span></div>`).join('')}</div>
@@ -666,11 +671,11 @@ function renderSetup(){
     const nameLine = r.namesMatch===undefined ? '<p>Add the player names above to confirm the code belongs to this group.</p>' : r.namesMatch ? '<p><b>Names match.</b> This code belongs to this group.</p>' : '<p><b>Names do NOT match.</b> This code came from a different group, or the names were spelled differently. Spacing and capitals are ignored, so check the spelling.</p>';
     o.innerHTML=`<div class="feedback ${r.namesMatch===false?'bad':'good'}"><h3>Valid code</h3>
       <p><b>${r.mins} minutes</b> of active play on ${r.date} · ${r.players} players</p>
-      <p>${r.turns} turns · ${r.att} questions scored · ${r.cor} correct (${r.att?Math.round(r.cor/r.att*100):0}%) · ${r.team} of 2 Team Rounds finished${r.players===1?' (solo)':''}</p>${nameLine}</div>`; };
+      <p>${r.turns} turns · ${r.att} questions scored · ${r.cor} correct (${r.att?Math.round(r.cor/r.att*100):0}%) · ${r.team} of 2 Team Rounds finished${r.players===1?' (solo)':''}</p><p>${r.mins>=60?'<b>Met the 60-minute minimum.</b>':'<b>Did NOT meet the 60-minute minimum.</b>'}</p>${nameLine}</div>`; };
   $('#nseg').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; keepNames(); setup.n=+b.dataset.n; renderSetup(); };
   $('#lseg').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; keepNames(); setup.len=+b.dataset.l; renderSetup(); };
   $('#go').onclick=()=>{ keepNames(); S=freshState(); save(); render(); };
-  const r=$('#resume'); if(r) r.onclick=()=>{ S=saved; if(S.pausedAt==null){ /* treat time away as paused */ } render(); };
+  const r=$('#resume'); if(r) r.onclick=()=>{ S=saved; if(S.pausedAt==null){ S.pausedAt = S.lastSeen || Date.now(); S.autoPaused='away'; } lastActivity=Date.now(); save(); render(); };
 }
 function keepNames(){ for(let i=0;i<3;i++){ const el=$('#name'+i); if(el) setup.names[i]=el.value; } }
 
@@ -684,24 +689,28 @@ function scorebar(){
     <div class="clock"><div class="row"><span class="t" id="clk">${S.timeUp?'0:00':`${m}:${String(s).padStart(2,'0')}`}</span><button id="pause">${S.pausedAt?'Resume':'Pause'}</button></div>
       <small>${S.timeUp?'Time is up':S.pausedAt?'Paused':next?`${solo()?'Challenge':'Team'} Round at ${next} min`:'Final stretch'}</small></div></div>`;
 }
-function bindClock(){ const p=$('#pause'); if(p) p.onclick=()=>{ if(S.pausedAt){ S.pausedTotal += Date.now()-S.pausedAt; S.pausedAt=null; } else S.pausedAt=Date.now(); save(); render(); }; }
+function resumeClock(){ if(S.pausedAt){ S.pausedTotal += Date.now()-S.pausedAt; S.pausedAt=null; } S.autoPaused=null; lastActivity=Date.now(); save(); render(); }
+function bindClock(){ const p=$('#pause'); if(p) p.onclick=()=>{ if(S.pausedAt) resumeClock(); else { S.pausedAt=Date.now(); save(); render(); } };
+  const rb=$('#autoResume'); if(rb) rb.onclick=resumeClock; }
+function pausedNotice(){ if(!S.autoPaused || !S.pausedAt) return ''; const why = S.autoPaused==='away' ? 'The game was closed. Time away does not count toward your 60 minutes.' : S.autoPaused==='hidden' ? 'You left this page. Time away does not count toward your 60 minutes.' : 'No one has tapped anything for a while. Idle time does not count toward your 60 minutes.';
+  return `<div class="banner" role="status">Clock paused. ${why} <button class="btn small" id="autoResume">Resume</button></div>`; }
 
 function renderBoard(){
   const p=S.players[S.turn];
   let banner='';
   if(S.timeUp) banner=`<div class="banner">Time is up! <button class="btn small" id="toResults">See final results</button></div>`;
   else if(S.teamPending) banner = solo() ? `<div class="banner">Challenge Round time! Work a full test-style problem. <button class="btn small" id="toTeam">Start the Challenge Round</button></div>` : `<div class="banner">Team Round time! Everyone works together. <button class="btn small" id="toTeam">Start the Team Round</button></div>`;
-  app.innerHTML = mast('Unit 3 review: scatterplots, correlation, and regression') + scorebar() + banner + `
+  app.innerHTML = mast('Unit 3 review: scatterplots, correlation, and regression') + scorebar() + pausedNotice() + banner + `
    <div class="board">${CATS.map(c=>{ const st=S.stats[c.id]; return `<div class="col" style="--cc:${c.color}">
       <div class="colhead"><b><span class="dot" style="background:${c.color}"></span>${c.name}</b><span>${c.blurb}</span><span class="acc">${st.att?`group: ${st.cor}/${st.att} correct`:'not tried yet'}</span></div>
       ${TIERS.map(t=>`<button class="tile" data-c="${c.id}" data-t="${t.v}" ${S.timeUp||S.teamPending?'disabled':''} aria-label="${c.name}, ${t.v} points"><span class="v">${t.v}</span><span class="l">${t.l}</span></button>`).join('')}
     </div>`; }).join('')}</div>
-   <p class="tip"><b style="color:${PCOL[S.turn]}">${esc(p.name)}</b>, pick a tile. Tip: the categories still missing from your dots are the ones to try for the Full Spread bonus. <button class="btn small" id="endEarly" style="margin-left:8px">End game now</button></p>`;
+   <p class="tip"><b style="color:${PCOL[S.turn]}">${esc(p.name)}</b>, pick a tile. Tip: the categories still missing from your dots are the ones to try for the Full Spread bonus. ${activeMin()>=MIN_MINUTES?'<button class="btn small" id="endEarly" style="margin-left:8px">End game now</button>':''}</p>`;
   bindClock();
   app.querySelectorAll('.tile').forEach(b=>b.onclick=()=>{ S.q = makeQuestion(b.dataset.c, +b.dataset.t); S.q.state={}; S.phase='question'; save(); render(); });
   const t=$('#toTeam'); if(t) t.onclick=()=>{ S.team=makeTeam(); S.team.scores=S.players.map(()=>[]); S.team.revealed=false; S.phase='team'; S.teamPending=false; save(); render(); };
   const r=$('#toResults'); if(r) r.onclick=()=>{ S.phase='results'; save(); render(); };
-  $('#endEarly').onclick=()=>{ const b=$('#endEarly'); if(b.dataset.armed){ S.phase='results'; save(); render(); } else { b.dataset.armed=1; b.textContent='Tap again to end'; } };
+  if($('#endEarly')) $('#endEarly').onclick=()=>{ const b=$('#endEarly'); if(b.dataset.armed){ S.phase='results'; save(); render(); } else { b.dataset.armed=1; b.textContent='Tap again to end'; } };
 }
 
 function renderQuestion(){
@@ -738,7 +747,7 @@ function renderQuestion(){
     else fb = `<div class="feedback ${good?'good':'bad'}"><h3>${head}</h3>${q.type==='num'?`<p>Answer: <b class="mono">${q.unit==='$'?(q.num<0?'−':'')+'$'+fmt(Math.abs(q.num),0):sgn(q.num,2)+' '+esc(q.unit)}</b></p>`:''}<p>${q.ex||''}</p>${q.work?`<div class="work">${esc(q.work)}</div>`:''}</div>`;
     if(st.bonus) fb += `<div class="feedback good" style="margin-top:10px"><h3>Full Spread bonus! +3 for ${esc(st.bonus)}</h3><p>Scored in all six categories.</p></div>`;
   }
-  app.innerHTML = mast('Unit 3 review: scatterplots, correlation, and regression') + scorebar() + `
+  app.innerHTML = mast('Unit 3 review: scatterplots, correlation, and regression') + scorebar() + pausedNotice() + `
    <article class="qcard" style="--cc:${c.color}">
      <div class="qhead"><span class="cat"><span class="dot" style="background:${c.color};margin:0"></span>${c.name} · ${TIERS[q.tier-1].l}</span><span class="who"><span style="color:${PCOL[S.turn]}">${esc(p.name)}</span> · worth ${pts} pt${pts>1?'s':''}</span></div>
      <div class="qbody ${q.vis?'has-vis':''}">
@@ -799,7 +808,7 @@ function renderTeam(){
       <div class="pscore">${S.players.map((pl,pi)=>`<div><div class="who" style="color:${PCOL[pi]}">${esc(pl.name)}</div><div class="rubric">${T.parts.flatMap(pt=>pt.rubric.map((r,ri)=>`<label><input type="checkbox" data-p="${pi}" data-k="${pt.k}${ri}" ${T.saved?'disabled':''} ${(T.scores[pi]||[]).includes(pt.k+ri)?'checked':''}><span><b class="mono">${pt.k})</b> ${r}</span></label>`)).join('')}</div></div>`).join('')}</div>
       <div class="actions" style="padding:12px 0 0">${T.saved?`<button class="btn primary" id="tBack">Back to the board →</button>`:`<button class="btn primary" id="tSave">Add these points</button>`}</div>`;
   }
-  app.innerHTML = mast(solo()?'Challenge Round: a full test-style problem':'Team Round: a full test-style problem') + scorebar() + `
+  app.innerHTML = mast(solo()?'Challenge Round: a full test-style problem':'Team Round: a full test-style problem') + scorebar() + pausedNotice() + `
    <section class="panel">
      <div class="eyebrow">${solo()?'Challenge':'Team'} Round ${S.teamDone+1} of 2 · about 8 minutes</div>
      <h2 style="font-size:28px;margin:4px 0 6px">Work it like the real test</h2>
@@ -821,17 +830,17 @@ function renderResults(){
   const rows=CATS.map(c=>({c, ...S.stats[c.id], pct: S.stats[c.id].att? S.stats[c.id].cor/S.stats[c.id].att : null}));
   const weak=rows.filter(r=>r.att).sort((a,b)=>a.pct-b.pct).slice(0,2).filter(r=>r.pct<0.8);
   const untried=rows.filter(r=>!r.att);
-  const cc=makeCode();
+  const cc=makeCode(); const enough = cc.mins >= MIN_MINUTES;
   app.innerHTML = mast('Final results') + `
    <div class="results">
      <section class="panel"><div class="eyebrow">Final scores</div><h2 style="font-size:30px;margin:4px 0 14px">${solo()?`${esc(order[0].name)}: ${order[0].score} points${order[0].score>=40?'. You beat 40!':''}`:order[0].score===order[1]?.score?'It\'s a tie at the top!':esc(order[0].name)+' wins!'}</h2>
        <div class="podium">${order.map((p,k)=>`<div class="r" style="--pc:${PCOL[p.i]}"><b>${k+1}. ${esc(p.name)}</b><span class="mono" style="font-size:26px;font-weight:700;color:${PCOL[p.i]}">${p.score}</span></div>`).join('')}</div>
        <p class="paper-note" style="margin-top:14px">${S.turns} turns played · ${S.teamDone} ${solo()?'Challenge':'Team'} Round${S.teamDone===1?'':'s'}</p>
-       <div style="margin-top:18px;border:2px dashed var(--accent);border-radius:12px;padding:14px 16px">
+       ${enough?`<div style="margin-top:18px;border:2px dashed var(--accent);border-radius:12px;padding:14px 16px">
          <div class="eyebrow">Completion code: write this down and turn it in</div>
          <div class="mono" style="font-size:clamp(20px,3.4vw,28px);font-weight:700;letter-spacing:.04em;margin:6px 0;word-break:break-all">${cc.code}</div>
          <div class="paper-note">Also write the names exactly as entered: ${S.players.map(p=>esc(p.name)).join(', ')}. ${cc.mins} min played · ${cc.att} questions · ${cc.cor} correct · ${S.teamDone}/2 ${solo()?"Challenge":"Team"} Rounds</div>
-       </div>
+       </div>`:`<div class="feedback bad" style="margin-top:18px"><h3>No completion code yet</h3><p>You have played ${cc.mins} active minutes. You need ${MIN_MINUTES}, so keep going for ${MIN_MINUTES-cc.mins} more minute${MIN_MINUTES-cc.mins===1?'':'s'}.</p><button class="btn primary" id="back2">Back to the board</button></div>`}
        <h3 style="margin-top:18px;font-size:22px">Before you leave</h3>
        <p style="max-width:62ch">Each player: write on your paper one thing you will remember for the test, and one question you still have.</p>
      </section>
@@ -844,6 +853,7 @@ function renderResults(){
    <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" id="again">New game</button><button class="btn" id="back">Back to the board</button></div>`;
   if(!S.pausedAt){ S.pausedAt=Date.now(); save(); }
   $('#again').onclick=()=>{ clearSave(); S=null; render(); };
+  if($('#back2')) $('#back2').onclick=()=>{ if(S.pausedAt){ S.pausedTotal+=Date.now()-S.pausedAt; S.pausedAt=null; } S.phase='board'; S.timeUp=false; S.len=Math.max(S.len, activeMin()+10); lastActivity=Date.now(); save(); render(); };
   $('#back').onclick=()=>{ if(S.pausedAt){ S.pausedTotal+=Date.now()-S.pausedAt; S.pausedAt=null; } S.phase='board'; S.timeUp=false; S.len += 10; save(); render(); };
 }
 
@@ -852,11 +862,22 @@ function render(){
   if(S.phase==='board') renderBoard(); else if(S.phase==='question') renderQuestion(); else if(S.phase==='team') renderTeam(); else renderResults();
   window.scrollTo({top:0});
 }
-setInterval(()=>{ if(!S || S.phase==='results' || S.pausedAt) return; const el=$('#clk'); if(!el) return;
+let beat=0;
+setInterval(()=>{ if(!S || S.phase==='results' || S.pausedAt) return;
+  if(!document.hidden){ const lim = S.phase==='team' ? IDLE_TEAM_MS : IDLE_MS;
+    if(Date.now()-lastActivity > lim){ S.pausedAt = lastActivity + lim; S.autoPaused='idle'; save(); render(); return; } }
+  if(++beat%10===0) save();
+  const el=$('#clk'); if(!el) return;
   const left=Math.max(0,S.len*60000-elapsedMs()); el.textContent = `${Math.floor(left/60000)}:${String(Math.floor(left%60000/1000)).padStart(2,'0')}`;
   if(S.phase==='board' && !S.timeUp && left===0){ S.timeUp=true; save(); render(); }
   if(S.phase==='board' && !S.teamPending && S.teamDone<2 && elapsedMs()/60000 >= S.len*(S.teamDone+1)/3){ S.teamPending=true; save(); render(); }
 },1000);
+['pointerdown','keydown','input','wheel'].forEach(ev=>document.addEventListener(ev,()=>{ lastActivity=Date.now(); },{passive:true,capture:true}));
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){ hiddenAt=Date.now(); if(S) save(); return; }
+  if(hiddenAt && S && S.phase!=='results' && !S.pausedAt && Date.now()-hiddenAt > 30000){ S.pausedAt=hiddenAt; S.autoPaused='hidden'; save(); render(); }
+  hiddenAt=null; lastActivity=Date.now();
+});
 render();
 </script>
 </body>
