@@ -9,7 +9,7 @@ segmented bar graphs, slope and intercept, residuals and predictions). Each stud
 - Turn on GitHub Pages (Settings → Pages → Deploy from branch → `main`, folder `/`) and share the link with students.
 
 ## How it plays
-- Six topic columns, each with 1-, 2- and 3-point tiles. A new question is generated every time a tile is picked.
+- Six topic columns, each with 1-, 2- and 3-point tiles (18 in all). Each player can play each tile once; played tiles are marked ✓ or ✗ and locked, and colored dots show who has played each tile. No question repeats during a game.
 - Students explain their reasoning out loud before answering; a partner can steal a missed question for half the points.
 - Written-answer cards are scored by partners using an on-screen checklist.
 - Two Team Rounds (when everyone has answered 5 questions, and again at 10) have everyone work a full test-style problem on paper, then check it against a key.
