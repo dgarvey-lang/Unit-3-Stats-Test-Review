@@ -584,36 +584,44 @@ const b36=(n,w)=>Math.max(0,Math.min(36**w-1,Math.round(n))).toString(36).toUppe
 const normNames = arr => arr.map(n=>n.toLowerCase().replace(/[^a-z]/g,'')).filter(Boolean).sort().join('|');
 const EPOCH = Date.UTC(2026,0,1);
 function dayNum(d=new Date()){ return Math.floor((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())-EPOCH)/86400000); }
+const normOne = n => n.toLowerCase().replace(/[^a-z]/g,'');
 function makeCode(){
-  const att=Object.values(S.stats).reduce((s,x)=>s+x.att,0), cor=Object.values(S.stats).reduce((s,x)=>s+x.cor,0);
   const mins=Math.floor(elapsedMs()/60000);
-  const payload = b36(mins,2)+b36(S.turns,2)+b36(att,2)+b36(cor,2)+b36(S.teamDone,1)+b36(S.players.length,1)+b36(dayNum(),2);
-  const chk = b36(fnv(payload+SALT)%1296,2), nm = b36(fnv(normNames(S.players.map(p=>p.name))+SALT)%1296,2);
-  return {code:`BF-${payload.slice(0,4)}-${payload.slice(4,8)}-${payload.slice(8)}-${chk}${nm}`, mins, att, cor};
+  const ps=[...S.players].sort((a,b)=>normOne(a.name)<normOne(b.name)?-1:normOne(a.name)>normOne(b.name)?1:0);
+  let payload = b36(mins,2)+b36(S.teamDone,1)+b36(S.players.length,1)+b36(dayNum(),2);
+  for(let i=0;i<3;i++){ const p=ps[i]; payload += b36(p?p.ans:0,2)+b36(p?p.cor:0,2); }
+  const chk = b36(fnv(payload+SALT)%46656,3), nm = b36(fnv(normNames(S.players.map(p=>p.name))+SALT)%46656,3);
+  const all = payload+chk+nm;
+  return {code:'BF-'+all.match(/.{4}/g).join('-'), mins};
 }
 function checkCode(raw, namesRaw){
   const c=raw.toUpperCase().replace(/[^0-9A-Z]/g,'').replace(/^BF/,'');
-  if(c.length!==16) return {ok:false, msg:'That code is the wrong length. It should look like BF-XXXX-XXXX-XXXX-XXXX.'};
-  const payload=c.slice(0,12), chk=c.slice(12,14), nm=c.slice(14,16);
-  if(b36(fnv(payload+SALT)%1296,2)!==chk) return {ok:false, msg:'Not a valid code. It may have been mistyped or made up.'};
+  if(c.length!==24) return {ok:false, msg:'That code is the wrong length. It should look like BF-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX (24 characters after BF).'};
+  const payload=c.slice(0,18), chk=c.slice(18,21), nm=c.slice(21,24);
+  if(b36(fnv(payload+SALT)%46656,3)!==chk) return {ok:false, msg:'Not a valid code. It may have been mistyped or made up.'};
   const n=(i,w)=>parseInt(payload.slice(i,i+w),36);
-  const d=new Date(EPOCH + n(10,2)*86400000);
-  const out={ok:true, mins:n(0,2), turns:n(2,2), att:n(4,2), cor:n(6,2), team:n(8,1), players:n(9,1), date:d.toLocaleDateString('en-US',{timeZone:'UTC',weekday:'short',month:'short',day:'numeric',year:'numeric'})};
-  if(namesRaw.trim()){ const names=namesRaw.split(/[,;\n]+/); out.namesMatch = b36(fnv(normNames(names)+SALT)%1296,2)===nm; }
+  const d=new Date(EPOCH + n(4,2)*86400000);
+  const players=n(3,1);
+  const out={ok:true, mins:n(0,2), team:n(2,1), players, date:d.toLocaleDateString('en-US',{timeZone:'UTC',weekday:'short',month:'short',day:'numeric',year:'numeric'}), rows:[]};
+  for(let i=0;i<players;i++) out.rows.push({ans:n(6+i*4,2), cor:n(8+i*4,2)});
+  if(namesRaw.trim()){ const names=namesRaw.split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean); out.namesMatch = b36(fnv(normNames(names)+SALT)%46656,3)===nm;
+    if(out.namesMatch){ const sorted=[...names].sort((a,b)=>normOne(a)<normOne(b)?-1:normOne(a)>normOne(b)?1:0); out.rows.forEach((r,i)=>r.name=sorted[i]); } }
   return out;
 }
 
 /* ============ state ============ */
-const SAVE_KEY='bestfit-v1';
+const SAVE_KEY='bestfit-v2';
 let S = null;
 let setup = {n:2, names:['','',''], len:60};
-const MIN_MINUTES = 60;           // active minutes required before a completion code appears
+const MIN_Q = 15;                 // questions each player must answer on their own turns before a code appears
 const IDLE_MS = 6*60000, IDLE_TEAM_MS = 15*60000;  // clock auto-pauses after this long with no taps
 let lastActivity = Date.now(), hiddenAt = null;
 const activeMin = () => Math.floor(elapsedMs()/60000);
+const allDone = () => S.players.every(p=>p.ans>=MIN_Q);
+const teamDue = () => S.teamDone<2 && Math.min(...S.players.map(p=>p.ans)) >= 5*(S.teamDone+1);
 function freshState(){
-  return {phase:'board', players: Array.from({length:setup.n},(_,i)=>({name:setup.names[i].trim()||`Player ${i+1}`, score:0, cats:[], bonus:false})),
-    turn:0, len:setup.len, start:Date.now(), pausedAt:null, pausedTotal:0, teamDone:0, teamPending:false, timeUp:false,
+  return {phase:'board', players: Array.from({length:setup.n},(_,i)=>({name:setup.names[i].trim()||`Player ${i+1}`, score:0, cats:[], bonus:false, ans:0, cor:0})),
+    turn:0, start:Date.now(), pausedAt:null, pausedTotal:0, teamDone:0, teamPending:false,
     stats:Object.fromEntries(CATS.map(c=>[c.id,{att:0,cor:0}])), missed:[], q:null, team:null, turns:0};
 }
 function save(){ if(S) S.lastSeen=Date.now(); try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} }
@@ -637,8 +645,6 @@ function renderSetup(){
       <div class="field"><label>Number of players</label>
         <div class="seg" id="nseg">${[1,2,3].map(n=>`<button type="button" data-n="${n}" aria-pressed="${setup.n===n}">${n===1?'Solo':n+' players'}</button>`).join('')}</div></div>
       ${[0,1,2].map(i=>`<div class="field ${i>=setup.n?'hidden':''}" id="f${i}"><label for="name${i}">Player ${i+1} name</label><input id="name${i}" maxlength="18" placeholder="Player ${i+1}" value="${esc(setup.names[i])}"></div>`).join('')}
-      <div class="field"><label>Game length</label>
-        <div class="seg" id="lseg">${[60,75,90].map(n=>`<button type="button" data-l="${n}" aria-pressed="${setup.len===n}">${n} min</button>`).join('')}</div></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px"><button class="btn primary" id="go">Start the game</button></div>
       <p class="paper-note" style="margin-top:14px">Each player needs a pencil and scratch paper. One device per group.</p>
       <p class="paper-note" style="margin-top:4px"><b>Playing solo?</b> There are no steals. You score your own written answers, so be honest with yourself. Try to score in all six categories and beat 40 points.</p>
@@ -652,16 +658,16 @@ function renderSetup(){
         <li>Miss it? A partner can <b>steal</b> for half the points (rounded up).</li>
         <li>Written-answer cards are scored by your partners, using the checklist on the screen.</li>
         <li><b>Full Spread bonus:</b> the first player to score in all six categories gets +3.</li>
-        <li><b>Team Rounds</b> pop up at the 1/3 and 2/3 marks. Everyone works a full test-style problem on paper, then checks it against the key. (Solo players get a Challenge Round instead.)</li>
-        <li><b>You must play at least 60 minutes</b> to get a completion code for your teacher. The clock pauses after 6 minutes with no taps (15 in a Team Round) and when you leave this page, and paused time does not count.</li>
-        <li>When the clock runs out, finish the current turn. The results screen shows which topics your group should review.</li>
+        <li><b>Team Rounds</b> pop up when everyone has answered 5 questions, and again at 10. Everyone works a full test-style problem on paper, then checks it against the key. (Solo players get a Challenge Round instead.)</li>
+        <li><b>Each player must answer at least 15 questions</b> on their own turns, right or wrong, to get a completion code for your teacher. Steals and Team Rounds earn points but don't count toward the 15.</li>
+        <li>Once everyone has answered 15, you can end the game and get your code, or keep playing. The results screen shows which topics your group should review.</li>
       </ol>
       <div class="legend">${CATS.map(c=>`<div><span class="dot" style="background:${c.color}"></span><span><b>${c.name}</b><br><span style="color:var(--muted)">${c.blurb}</span></span></div>`).join('')}</div>
     </section>
   </div>
   <details class="panel" style="margin-top:20px" id="teacher"><summary style="cursor:pointer;font-weight:700;font-family:var(--display);font-size:20px">Teacher: check a completion code</summary>
-    <p style="max-width:68ch;color:var(--muted)">Students get a code on the results screen. Type it here to see how long they actually played (paused time doesn't count), how many questions they answered, their accuracy, and the date. Add their names to confirm the code belongs to that group.</p>
-    <div class="field"><label for="tcode">Completion code</label><input id="tcode" placeholder="BF-XXXX-XXXX-XXXX-XXXX" autocomplete="off" class="mono"></div>
+    <p style="max-width:68ch;color:var(--muted)">Students get a code on the results screen. Type it here to see how many questions each student answered on their own turns and how many they got right, plus the date, active minutes played, and Team Rounds finished. Add their names to confirm the code belongs to that group.</p>
+    <div class="field"><label for="tcode">Completion code</label><input id="tcode" placeholder="BF-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" autocomplete="off" class="mono"></div>
     <div class="field"><label for="tnames">Player names, separated by commas (optional, but needed to confirm the group)</label><input id="tnames" placeholder="Maya, Jordan" autocomplete="off"></div>
     <button class="btn primary" id="tcheck">Check code</button>
     <div id="tout" style="margin-top:14px"></div>
@@ -669,48 +675,48 @@ function renderSetup(){
   $('#tcheck').onclick=()=>{ const r=checkCode($('#tcode').value,$('#tnames').value); const o=$('#tout');
     if(!r.ok){ o.innerHTML=`<div class="feedback bad"><h3>Invalid code</h3><p>${r.msg}</p></div>`; return; }
     const nameLine = r.namesMatch===undefined ? '<p>Add the player names above to confirm the code belongs to this group.</p>' : r.namesMatch ? '<p><b>Names match.</b> This code belongs to this group.</p>' : '<p><b>Names do NOT match.</b> This code came from a different group, or the names were spelled differently. Spacing and capitals are ignored, so check the spelling.</p>';
+    const rows = r.rows.map((x,i)=>`<tr><td style="text-align:left">${x.name?esc(x.name):`Player ${i+1}${r.namesMatch?'':' (alphabetical)'}`}</td><td>${x.ans}</td><td>${x.cor}</td><td>${x.ans?Math.round(x.cor/x.ans*100):0}%</td><td>${x.ans>=15?'Yes':'<b>No</b>'}</td></tr>`).join('');
     o.innerHTML=`<div class="feedback ${r.namesMatch===false?'bad':'good'}"><h3>Valid code</h3>
-      <p><b>${r.mins} minutes</b> of active play on ${r.date} · ${r.players} players</p>
-      <p>${r.turns} turns · ${r.att} questions scored · ${r.cor} correct (${r.att?Math.round(r.cor/r.att*100):0}%) · ${r.team} of 2 Team Rounds finished${r.players===1?' (solo)':''}</p><p>${r.mins>=60?'<b>Met the 60-minute minimum.</b>':'<b>Did NOT meet the 60-minute minimum.</b>'}</p>${nameLine}</div>`; };
+      <p>Played ${r.date} · ${r.players===1?'solo':r.players+' players'} · ${r.mins} active minutes · ${r.team} of 2 ${r.players===1?'Challenge':'Team'} Rounds</p>
+      <div style="overflow-x:auto"><table class="data"><thead><tr><th style="text-align:left">Student</th><th>Answered</th><th>Correct</th><th>Percent</th><th>Met 15?</th></tr></thead><tbody>${rows}</tbody></table></div>
+      ${nameLine}</div>`; };
   $('#nseg').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; keepNames(); setup.n=+b.dataset.n; renderSetup(); };
-  $('#lseg').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; keepNames(); setup.len=+b.dataset.l; renderSetup(); };
   $('#go').onclick=()=>{ keepNames(); S=freshState(); save(); render(); };
   const r=$('#resume'); if(r) r.onclick=()=>{ S=saved; if(S.pausedAt==null){ S.pausedAt = S.lastSeen || Date.now(); S.autoPaused='away'; } lastActivity=Date.now(); save(); render(); };
 }
 function keepNames(){ for(let i=0;i<3;i++){ const el=$('#name'+i); if(el) setup.names[i]=el.value; } }
 
 function scorebar(){
-  const left = Math.max(0, S.len*60000 - elapsedMs()); const m=Math.floor(left/60000), s=Math.floor(left%60000/1000);
-  const next = S.teamDone<2 ? Math.round(S.len*(S.teamDone+1)/3) : null;
+  const el=elapsedMs(), m=Math.floor(el/60000), s=Math.floor(el%60000/1000);
+  const next = S.teamDone<2 ? 5*(S.teamDone+1) : null;
   return `<div class="scorebar">${S.players.map((p,i)=>`<div class="pcard ${i===S.turn&&S.phase!=='team'?'active':''}" style="--pc:${PCOL[i]}">
       <div style="min-width:0"><div class="turn">${i===S.turn&&S.phase!=='team'?'Your turn':'&nbsp;'}</div><div class="nm">${esc(p.name)}</div>
-      <div class="pips" title="Categories scored in">${CATS.map(c=>`<i style="${p.cats.includes(c.id)?`background:${c.color};border-color:${c.color}`:''}"></i>`).join('')}</div></div>
+      <div class="paper-note mono" style="font-size:13px">${Math.min(p.ans,MIN_Q)}/${MIN_Q} answered${p.ans>=MIN_Q?' ✓':''}</div><div class="pips" title="Categories scored in">${CATS.map(c=>`<i style="${p.cats.includes(c.id)?`background:${c.color};border-color:${c.color}`:''}"></i>`).join('')}</div></div>
       <div class="sc">${p.score}</div></div>`).join('')}
-    <div class="clock"><div class="row"><span class="t" id="clk">${S.timeUp?'0:00':`${m}:${String(s).padStart(2,'0')}`}</span><button id="pause">${S.pausedAt?'Resume':'Pause'}</button></div>
-      <small>${S.timeUp?'Time is up':S.pausedAt?'Paused':next?`${solo()?'Challenge':'Team'} Round at ${next} min`:'Final stretch'}</small></div></div>`;
+    <div class="clock"><div class="row"><span class="t" id="clk">${m}:${String(s).padStart(2,'0')}</span><button id="pause">${S.pausedAt?'Resume':'Pause'}</button></div>
+      <small>${S.pausedAt?'Paused':'Time played'}${next?` · ${solo()?'Challenge':'Team'} Round when all reach ${next}`:''}</small></div></div>`;
 }
 function resumeClock(){ if(S.pausedAt){ S.pausedTotal += Date.now()-S.pausedAt; S.pausedAt=null; } S.autoPaused=null; lastActivity=Date.now(); save(); render(); }
 function bindClock(){ const p=$('#pause'); if(p) p.onclick=()=>{ if(S.pausedAt) resumeClock(); else { S.pausedAt=Date.now(); save(); render(); } };
   const rb=$('#autoResume'); if(rb) rb.onclick=resumeClock; }
-function pausedNotice(){ if(!S.autoPaused || !S.pausedAt) return ''; const why = S.autoPaused==='away' ? 'The game was closed. Time away does not count toward your 60 minutes.' : S.autoPaused==='hidden' ? 'You left this page. Time away does not count toward your 60 minutes.' : 'No one has tapped anything for a while. Idle time does not count toward your 60 minutes.';
+function pausedNotice(){ if(!S.autoPaused || !S.pausedAt) return ''; const why = S.autoPaused==='away' ? 'The game was closed. Time away is not counted as playing time.' : S.autoPaused==='hidden' ? 'You left this page. Time away is not counted as playing time.' : 'No one has tapped anything for a while. Idle time is not counted as playing time.';
   return `<div class="banner" role="status">Clock paused. ${why} <button class="btn small" id="autoResume">Resume</button></div>`; }
 
 function renderBoard(){
   const p=S.players[S.turn];
   let banner='';
-  if(S.timeUp) banner=`<div class="banner">Time is up! <button class="btn small" id="toResults">See final results</button></div>`;
-  else if(S.teamPending) banner = solo() ? `<div class="banner">Challenge Round time! Work a full test-style problem. <button class="btn small" id="toTeam">Start the Challenge Round</button></div>` : `<div class="banner">Team Round time! Everyone works together. <button class="btn small" id="toTeam">Start the Team Round</button></div>`;
+  if(S.teamPending) banner = solo() ? `<div class="banner">Challenge Round time! Work a full test-style problem. <button class="btn small" id="toTeam">Start the Challenge Round</button></div>` : `<div class="banner">Team Round time! Everyone works together. <button class="btn small" id="toTeam">Start the Team Round</button></div>`;
+  else if(allDone()) banner=`<div class="banner">${solo()?'You have':'Everyone has'} answered ${MIN_Q} questions! Get your completion code now, or keep playing for more practice. <button class="btn small" id="toResults">Finish and get my code</button></div>`;
   app.innerHTML = mast('Unit 3 review: scatterplots, correlation, and regression') + scorebar() + pausedNotice() + banner + `
    <div class="board">${CATS.map(c=>{ const st=S.stats[c.id]; return `<div class="col" style="--cc:${c.color}">
       <div class="colhead"><b><span class="dot" style="background:${c.color}"></span>${c.name}</b><span>${c.blurb}</span><span class="acc">${st.att?`group: ${st.cor}/${st.att} correct`:'not tried yet'}</span></div>
-      ${TIERS.map(t=>`<button class="tile" data-c="${c.id}" data-t="${t.v}" ${S.timeUp||S.teamPending?'disabled':''} aria-label="${c.name}, ${t.v} points"><span class="v">${t.v}</span><span class="l">${t.l}</span></button>`).join('')}
+      ${TIERS.map(t=>`<button class="tile" data-c="${c.id}" data-t="${t.v}" ${S.teamPending?'disabled':''} aria-label="${c.name}, ${t.v} points"><span class="v">${t.v}</span><span class="l">${t.l}</span></button>`).join('')}
     </div>`; }).join('')}</div>
-   <p class="tip"><b style="color:${PCOL[S.turn]}">${esc(p.name)}</b>, pick a tile. Tip: the categories still missing from your dots are the ones to try for the Full Spread bonus. ${activeMin()>=MIN_MINUTES?'<button class="btn small" id="endEarly" style="margin-left:8px">End game now</button>':''}</p>`;
+   <p class="tip"><b style="color:${PCOL[S.turn]}">${esc(p.name)}</b>, pick a tile. Tip: the categories still missing from your dots are the ones to try for the Full Spread bonus. </p>`;
   bindClock();
   app.querySelectorAll('.tile').forEach(b=>b.onclick=()=>{ S.q = makeQuestion(b.dataset.c, +b.dataset.t); S.q.state={}; S.phase='question'; save(); render(); });
   const t=$('#toTeam'); if(t) t.onclick=()=>{ S.team=makeTeam(); S.team.scores=S.players.map(()=>[]); S.team.revealed=false; S.phase='team'; S.teamPending=false; save(); render(); };
   const r=$('#toResults'); if(r) r.onclick=()=>{ S.phase='results'; save(); render(); };
-  if($('#endEarly')) $('#endEarly').onclick=()=>{ const b=$('#endEarly'); if(b.dataset.armed){ S.phase='results'; save(); render(); } else { b.dataset.armed=1; b.textContent='Tap again to end'; } };
 }
 
 function renderQuestion(){
@@ -779,7 +785,7 @@ function answer(v){
   if(isRight(q,v)) finish('right', q.tier, S.turn, true);
   else { if(q.type==='mc') st.wrong=[...(st.wrong||[]),v]; st.firstWrong=true; recordStat(false); if(S.players.length>1){ st.awaitSteal=true; save(); render(); } else finish('wrong',0,null,false,true); }
 }
-function recordStat(ok){ const s=S.stats[S.q.cat]; s.att++; if(ok) s.cor++; else S.missed.push({cat:S.q.cat, p:S.q.prompt.replace(/<[^>]+>/g,'')}); }
+function recordStat(ok){ const s=S.stats[S.q.cat]; s.att++; if(ok) s.cor++; const me=S.players[S.turn]; me.ans++; if(ok) me.cor++; else S.missed.push({cat:S.q.cat, p:S.q.prompt.replace(/<[^>]+>/g,'')}); }
 function finish(result, earned, who, ok, statDone){
   const q=S.q, st=q.state; st.done=true; st.result=result; st.earned=earned;
   if(!statDone && !st.firstWrong) recordStat(ok);
@@ -789,9 +795,7 @@ function finish(result, earned, who, ok, statDone){
 }
 function nextTurn(){
   S.turn=(S.turn+1)%S.players.length; S.turns++; S.q=null; S.phase='board';
-  const mins = elapsedMs()/60000;
-  if(S.teamDone<2 && mins >= S.len*(S.teamDone+1)/3) S.teamPending=true;
-  if(mins>=S.len) S.timeUp=true;
+  if(teamDue()) S.teamPending=true;
   save(); render();
 }
 
@@ -822,7 +826,7 @@ function renderTeam(){
   const r=$('#tReveal'); if(r) r.onclick=()=>{ T.revealed=true; save(); render(); };
   app.querySelectorAll('input[data-p]').forEach(cb=>cb.onchange=()=>{ const pi=+cb.dataset.p, k=cb.dataset.k; const arr=T.scores[pi]||(T.scores[pi]=[]); if(cb.checked){ if(!arr.includes(k)) arr.push(k); } else T.scores[pi]=arr.filter(x=>x!==k); save(); });
   const sv=$('#tSave'); if(sv) sv.onclick=()=>{ S.players.forEach((pl,pi)=>pl.score+=(T.scores[pi]||[]).length); T.saved=true; S.teamDone++; save(); render(); };
-  const bk=$('#tBack'); if(bk) bk.onclick=()=>{ S.phase='board'; S.team=null; if(elapsedMs()/60000>=S.len) S.timeUp=true; save(); render(); };
+  const bk=$('#tBack'); if(bk) bk.onclick=()=>{ S.phase='board'; S.team=null; if(teamDue()) S.teamPending=true; save(); render(); };
 }
 
 function renderResults(){
@@ -830,17 +834,17 @@ function renderResults(){
   const rows=CATS.map(c=>({c, ...S.stats[c.id], pct: S.stats[c.id].att? S.stats[c.id].cor/S.stats[c.id].att : null}));
   const weak=rows.filter(r=>r.att).sort((a,b)=>a.pct-b.pct).slice(0,2).filter(r=>r.pct<0.8);
   const untried=rows.filter(r=>!r.att);
-  const cc=makeCode(); const enough = cc.mins >= MIN_MINUTES;
+  const cc=makeCode(); const enough = allDone();
   app.innerHTML = mast('Final results') + `
    <div class="results">
      <section class="panel"><div class="eyebrow">Final scores</div><h2 style="font-size:30px;margin:4px 0 14px">${solo()?`${esc(order[0].name)}: ${order[0].score} points${order[0].score>=40?'. You beat 40!':''}`:order[0].score===order[1]?.score?'It\'s a tie at the top!':esc(order[0].name)+' wins!'}</h2>
-       <div class="podium">${order.map((p,k)=>`<div class="r" style="--pc:${PCOL[p.i]}"><b>${k+1}. ${esc(p.name)}</b><span class="mono" style="font-size:26px;font-weight:700;color:${PCOL[p.i]}">${p.score}</span></div>`).join('')}</div>
+       <div class="podium">${order.map((p,k)=>`<div class="r" style="--pc:${PCOL[p.i]}"><b>${k+1}. ${esc(p.name)} <span class="paper-note mono" style="display:inline;font-size:14px;font-weight:400">${p.cor}/${p.ans} correct</span></b><span class="mono" style="font-size:26px;font-weight:700;color:${PCOL[p.i]}">${p.score}</span></div>`).join('')}</div>
        <p class="paper-note" style="margin-top:14px">${S.turns} turns played · ${S.teamDone} ${solo()?'Challenge':'Team'} Round${S.teamDone===1?'':'s'}</p>
        ${enough?`<div style="margin-top:18px;border:2px dashed var(--accent);border-radius:12px;padding:14px 16px">
          <div class="eyebrow">Completion code: write this down and turn it in</div>
-         <div class="mono" style="font-size:clamp(20px,3.4vw,28px);font-weight:700;letter-spacing:.04em;margin:6px 0;word-break:break-all">${cc.code}</div>
-         <div class="paper-note">Also write the names exactly as entered: ${S.players.map(p=>esc(p.name)).join(', ')}. ${cc.mins} min played · ${cc.att} questions · ${cc.cor} correct · ${S.teamDone}/2 ${solo()?"Challenge":"Team"} Rounds</div>
-       </div>`:`<div class="feedback bad" style="margin-top:18px"><h3>No completion code yet</h3><p>You have played ${cc.mins} active minutes. You need ${MIN_MINUTES}, so keep going for ${MIN_MINUTES-cc.mins} more minute${MIN_MINUTES-cc.mins===1?'':'s'}.</p><button class="btn primary" id="back2">Back to the board</button></div>`}
+         <div class="mono" style="font-size:clamp(20px,3.4vw,28px);font-weight:700;letter-spacing:.04em;margin:6px 0">${cc.code.split('-').map(g=>`<span style="white-space:nowrap">${g}</span>`).join('-<wbr>')}</div>
+         <div class="paper-note">Also write the names exactly as entered: ${S.players.map(p=>esc(p.name)).join(', ')}. ${S.players.map(p=>`${esc(p.name)}: ${p.cor}/${p.ans} correct`).join(' · ')} · ${S.teamDone}/2 ${solo()?"Challenge":"Team"} Rounds</div>
+       </div>`:`<div class="feedback bad" style="margin-top:18px"><h3>No completion code yet</h3><p>Each player needs to answer ${MIN_Q} questions on their own turns. Still needed: ${S.players.filter(p=>p.ans<MIN_Q).map(p=>`${esc(p.name)} ${MIN_Q-p.ans} more`).join(', ')}.</p><button class="btn primary" id="back2">Back to the board</button></div>`}
        <h3 style="margin-top:18px;font-size:22px">Before you leave</h3>
        <p style="max-width:62ch">Each player: write on your paper one thing you will remember for the test, and one question you still have.</p>
      </section>
@@ -853,8 +857,8 @@ function renderResults(){
    <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" id="again">New game</button><button class="btn" id="back">Back to the board</button></div>`;
   if(!S.pausedAt){ S.pausedAt=Date.now(); save(); }
   $('#again').onclick=()=>{ clearSave(); S=null; render(); };
-  if($('#back2')) $('#back2').onclick=()=>{ if(S.pausedAt){ S.pausedTotal+=Date.now()-S.pausedAt; S.pausedAt=null; } S.phase='board'; S.timeUp=false; S.len=Math.max(S.len, activeMin()+10); lastActivity=Date.now(); save(); render(); };
-  $('#back').onclick=()=>{ if(S.pausedAt){ S.pausedTotal+=Date.now()-S.pausedAt; S.pausedAt=null; } S.phase='board'; S.timeUp=false; S.len += 10; save(); render(); };
+  if($('#back2')) $('#back2').onclick=()=>{ if(S.pausedAt){ S.pausedTotal+=Date.now()-S.pausedAt; S.pausedAt=null; } S.phase='board'; lastActivity=Date.now(); save(); render(); };
+  $('#back').onclick=()=>{ if(S.pausedAt){ S.pausedTotal+=Date.now()-S.pausedAt; S.pausedAt=null; } S.phase='board'; lastActivity=Date.now(); save(); render(); };
 }
 
 function render(){
@@ -868,9 +872,7 @@ setInterval(()=>{ if(!S || S.phase==='results' || S.pausedAt) return;
     if(Date.now()-lastActivity > lim){ S.pausedAt = lastActivity + lim; S.autoPaused='idle'; save(); render(); return; } }
   if(++beat%10===0) save();
   const el=$('#clk'); if(!el) return;
-  const left=Math.max(0,S.len*60000-elapsedMs()); el.textContent = `${Math.floor(left/60000)}:${String(Math.floor(left%60000/1000)).padStart(2,'0')}`;
-  if(S.phase==='board' && !S.timeUp && left===0){ S.timeUp=true; save(); render(); }
-  if(S.phase==='board' && !S.teamPending && S.teamDone<2 && elapsedMs()/60000 >= S.len*(S.teamDone+1)/3){ S.teamPending=true; save(); render(); }
+  const e=elapsedMs(); el.textContent = `${Math.floor(e/60000)}:${String(Math.floor(e%60000/1000)).padStart(2,'0')}`;
 },1000);
 ['pointerdown','keydown','input','wheel'].forEach(ev=>document.addEventListener(ev,()=>{ lastActivity=Date.now(); },{passive:true,capture:true}));
 document.addEventListener('visibilitychange',()=>{
