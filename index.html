@@ -1,0 +1,861 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Best Fit Showdown</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: graph-paper ground; a scoreboard strip on top, a 6x3 category board below; questions open as a worksheet card. */
+:root{
+  --paper:#EDF2F5; --grid:#D3DEE6; --card:#FFFFFF; --ink:#15212C; --muted:#566876; --line:#C3D0DA;
+  --accent:#D2452A; --accent-ink:#FFFFFF; --good:#13804A; --good-bg:#DDF3E6; --bad:#B42318; --bad-bg:#FBE3E0;
+  --c1:#0F7C86; --c2:#B7791F; --c3:#6D4BC4; --c4:#C2366B; --c5:#2563C9; --c6:#3C8A2E;
+  --p1:#2563C9; --p2:#C2410C; --p3:#0F7C5A;
+  --display:"Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --body:"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#0E161D; --grid:#1A2731; --card:#15212B; --ink:#E5EDF2; --muted:#93A5B2; --line:#2A3B48;
+  --accent:#F26B4F; --accent-ink:#1A0D09; --good:#4BD08A; --good-bg:#12321F; --bad:#FF8A7A; --bad-bg:#3A1714;
+  --c1:#3CC3CC; --c2:#E7A93F; --c3:#A88BF5; --c4:#F0709F; --c5:#6FA3F5; --c6:#79C866;
+  --p1:#6FA3F5; --p2:#F59A5B; --p3:#4FD1A0; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#0E161D; --grid:#1A2731; --card:#15212B; --ink:#E5EDF2; --muted:#93A5B2; --line:#2A3B48;
+  --accent:#F26B4F; --accent-ink:#1A0D09; --good:#4BD08A; --good-bg:#12321F; --bad:#FF8A7A; --bad-bg:#3A1714;
+  --c1:#3CC3CC; --c2:#E7A93F; --c3:#A88BF5; --c4:#F0709F; --c5:#6FA3F5; --c6:#79C866;
+  --p1:#6FA3F5; --p2:#F59A5B; --p3:#4FD1A0; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.5;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:28px 28px;min-height:100vh}
+.wrap{max-width:1180px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.1}
+button{font:inherit;cursor:pointer;color:inherit}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.btn{border:2px solid var(--ink);background:var(--card);border-radius:10px;padding:10px 18px;font-weight:700}
+.btn:hover{background:var(--paper)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.small{padding:6px 12px;font-size:15px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.panel{background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:24px}
+.eyebrow{font-size:13px;letter-spacing:.09em;text-transform:uppercase;font-weight:700;color:var(--muted)}
+
+/* masthead */
+.mast{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.mast h1{font-size:clamp(28px,4vw,44px);font-weight:800;letter-spacing:-.02em}
+.mast .sub{color:var(--muted)}
+.logo{width:56px;height:44px;flex:none}
+
+/* setup */
+.setup{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px}
+@media (max-width:820px){.setup{grid-template-columns:1fr}}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.field label{font-weight:700}
+.field input,.field select{font:inherit;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink)}
+.seg{display:flex;gap:8px;flex-wrap:wrap}
+.seg button{border:2px solid var(--line);background:var(--paper);border-radius:999px;padding:6px 16px;font-weight:700}
+.seg button[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+.rules ol{padding-left:22px;margin:10px 0 0;display:grid;gap:8px}
+.rules li{max-width:62ch}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-top:14px}
+.legend div{display:flex;gap:8px;align-items:flex-start;font-size:15px}
+.dot{width:12px;height:12px;border-radius:50%;flex:none;margin-top:5px}
+
+/* scoreboard */
+.scorebar{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch;margin-bottom:16px}
+.pcard{flex:1 1 150px;background:var(--card);border:2px solid var(--line);border-radius:12px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px;min-width:0}
+.pcard.active{border-color:var(--pc);box-shadow:0 0 0 3px color-mix(in srgb,var(--pc) 25%,transparent)}
+.pcard .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pcard .turn{font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--pc)}
+.pcard .sc{font-family:var(--mono);font-size:28px;font-weight:700;color:var(--pc)}
+.pips{display:flex;gap:3px;margin-top:4px}
+.pips i{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--line)}
+.clock{flex:0 1 210px;background:var(--ink);color:var(--paper);border-radius:12px;padding:8px 14px;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.clock .t{font-family:var(--mono);font-size:28px;font-weight:700;line-height:1}
+.clock .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.clock button{background:transparent;border:1.5px solid color-mix(in srgb,var(--paper) 50%,transparent);color:var(--paper);border-radius:8px;padding:2px 10px;font-size:14px}
+.clock small{font-size:13px;opacity:.8}
+.banner{background:var(--ink);color:var(--paper);border-radius:12px;padding:12px 16px;margin-bottom:14px;font-weight:700;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+/* board */
+.board{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+@media (max-width:900px){.board{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:520px){.board{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.col{display:flex;flex-direction:column;gap:8px;min-width:0}
+.colhead{background:var(--card);border:1.5px solid var(--line);border-radius:10px;padding:10px;min-height:86px;display:flex;flex-direction:column;gap:4px}
+.colhead b{font-family:var(--display);font-size:17px;line-height:1.15;display:flex;gap:7px;align-items:flex-start}
+.colhead span{font-size:13px;color:var(--muted);line-height:1.3}
+.colhead .acc{font-size:12px;font-family:var(--mono)}
+.tile{border:2px solid var(--cc);background:color-mix(in srgb,var(--cc) 12%,var(--card));border-radius:10px;padding:12px 10px;text-align:left;display:flex;flex-direction:column;gap:2px;transition:transform .12s}
+.tile:hover{transform:translateY(-2px);background:color-mix(in srgb,var(--cc) 22%,var(--card))}
+.tile .v{font-family:var(--mono);font-size:30px;font-weight:700;color:var(--cc);line-height:1}
+.tile .l{font-size:13px;font-weight:700;color:var(--muted)}
+.tip{margin-top:14px;color:var(--muted);font-size:15px}
+
+/* question */
+.qcard{background:var(--card);border:1.5px solid var(--line);border-radius:16px;overflow:hidden}
+.qhead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 20px;background:color-mix(in srgb,var(--cc) 14%,var(--card));border-bottom:1.5px solid var(--line)}
+.qhead .cat{font-weight:700;color:var(--cc);display:flex;gap:8px;align-items:center}
+.qhead .who{font-weight:700}
+.qbody{padding:22px 20px;display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.qbody.has-vis{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}
+@media (max-width:820px){.qbody.has-vis{grid-template-columns:1fr}}
+.prompt{font-size:20px;line-height:1.45;max-width:62ch}
+.prompt .eq{font-family:var(--mono);background:var(--paper);padding:2px 8px;border-radius:6px;white-space:nowrap}
+.vis{min-width:0}
+.vis svg{width:100%;height:auto;max-width:440px;display:block}
+.choices{display:grid;gap:10px;margin-top:6px}
+.choice{border:2px solid var(--line);background:var(--paper);border-radius:10px;padding:12px 14px;text-align:left;font-size:17px;display:flex;gap:12px;align-items:flex-start}
+.choice:hover:not(:disabled){border-color:var(--ink)}
+.choice .k{font-family:var(--mono);font-weight:700;color:var(--muted);flex:none}
+.choice.right{border-color:var(--good);background:var(--good-bg)}
+.choice.wrong{border-color:var(--bad);background:var(--bad-bg);text-decoration:line-through;text-decoration-thickness:1px}
+.choice:disabled{cursor:default}
+.numrow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px}
+.numrow input{font:inherit;font-family:var(--mono);font-size:22px;width:180px;max-width:100%;padding:8px 12px;border:2px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink)}
+.feedback{border-radius:12px;padding:14px 16px;border:2px solid var(--line);background:var(--paper)}
+.feedback.good{border-color:var(--good);background:var(--good-bg)}
+.feedback.bad{border-color:var(--bad);background:var(--bad-bg)}
+.feedback h3{font-size:20px;margin-bottom:6px}
+.feedback p{margin:6px 0;max-width:68ch}
+.work{font-family:var(--mono);font-size:15px;background:var(--card);border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:8px 0;white-space:pre-wrap;overflow-x:auto}
+.steal{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;padding:0 20px 20px}
+.rubric{display:grid;gap:8px;margin-top:8px}
+.rubric label{display:flex;gap:10px;align-items:flex-start;background:var(--card);border:1.5px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer}
+.rubric input{width:20px;height:20px;margin-top:3px;flex:none;accent-color:var(--accent)}
+.model{background:var(--card);border-left:4px solid var(--good);padding:10px 14px;border-radius:0 8px 8px 0;margin:8px 0}
+.selgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:6px}
+@media (max-width:520px){.selgrid{grid-template-columns:1fr}}
+.selgrid label{display:flex;flex-direction:column;gap:4px;font-weight:700}
+.selgrid select{font:inherit;font-weight:400;padding:8px 10px;border:2px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink)}
+.selgrid select.right{border-color:var(--good)} .selgrid select.wrong{border-color:var(--bad)}
+.paper-note{font-size:15px;color:var(--muted);display:flex;gap:8px;align-items:center}
+
+/* team round */
+.team-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:820px){.team-grid{grid-template-columns:1fr}}
+table.data{border-collapse:collapse;font-family:var(--mono);font-variant-numeric:tabular-nums}
+table.data th,table.data td{border:1.5px solid var(--line);padding:6px 14px;text-align:center}
+table.data th{font-family:var(--body);font-size:14px;background:var(--paper)}
+.parts{display:grid;gap:12px;margin:0;padding-left:0;list-style:none}
+.parts li{background:var(--paper);border-radius:10px;padding:10px 14px}
+.parts b.pl{font-family:var(--mono);color:var(--accent)}
+.pscore{display:grid;gap:16px}
+.pscore .who{font-weight:700;font-family:var(--display);font-size:20px}
+
+/* results */
+.results{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+@media (max-width:820px){.results{grid-template-columns:1fr}}
+.podium{display:grid;gap:10px}
+.podium .r{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-radius:12px;border:2px solid var(--pc);background:color-mix(in srgb,var(--pc) 10%,var(--card))}
+.podium .r b{font-family:var(--display);font-size:22px}
+.bars{display:grid;gap:10px}
+.bar{display:grid;grid-template-columns:minmax(0,170px) minmax(0,1fr) 64px;gap:10px;align-items:center;font-size:15px}
+.bar .track{height:14px;border-radius:7px;background:var(--paper);border:1px solid var(--line);overflow:hidden}
+.bar .fill{height:100%;background:var(--cc)}
+.missed{margin:8px 0 0;padding-left:20px;display:grid;gap:6px;font-size:15px}
+.hidden{display:none}
+@media (prefers-reduced-motion:reduce){.tile{transition:none}.tile:hover{transform:none}}
+</style>
+</head>
+<body>
+
+<div class="wrap" id="app"></div>
+
+<script>
+/* ============ helpers ============ */
+const $ = (s, el=document) => el.querySelector(s);
+const rnd = (a,b) => a + Math.random()*(b-a);
+const ri = (a,b) => Math.floor(rnd(a,b+1));
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const shuffle = a => { a=[...a]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
+const rd = (v,d=2) => Math.round(v*10**d)/10**d;
+const fmt = (v,d=2) => Number(rd(v,d)).toLocaleString('en-US',{maximumFractionDigits:d});
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const gauss = () => { let u=0,v=0; while(!u)u=Math.random(); while(!v)v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); };
+const MINUS = '−';
+function corr(pts){ const n=pts.length, mx=pts.reduce((s,p)=>s+p[0],0)/n, my=pts.reduce((s,p)=>s+p[1],0)/n;
+  let sxy=0,sxx=0,syy=0; for(const [x,y] of pts){sxy+=(x-mx)*(y-my);sxx+=(x-mx)**2;syy+=(y-my)**2;}
+  return {r: sxy/Math.sqrt(sxx*syy), b: sxy/sxx, a: my - (sxy/sxx)*mx}; }
+function sgn(v,d){ return (v<0?MINUS:'') + fmt(Math.abs(v),d); }
+function eqStr(a,b,ad,bd){ return `ŷ = ${sgn(a,ad)} ${b<0?MINUS:'+'} ${fmt(Math.abs(b),bd)}x`; }
+function parseNum(s){ s=String(s).replace(/−/g,'-').replace(/[^0-9.\-]/g,''); if(s===''||s==='-'||s==='.') return NaN; return parseFloat(s); }
+
+/* ============ categories ============ */
+const CATS = [
+  {id:'r',  name:'Correlation r', blurb:'What r tells you and what changes it', color:'var(--c1)'},
+  {id:'cz', name:'Cause or Lurker?', blurb:'Correlation vs. causation', color:'var(--c2)'},
+  {id:'vb', name:'Variables & Bar Graphs', blurb:'Explanatory, response, association', color:'var(--c3)'},
+  {id:'df', name:'Describe It', blurb:'Direction, form, strength, outliers', color:'var(--c4)'},
+  {id:'si', name:'Slope & Intercept', blurb:'Interpret in context', color:'var(--c5)'},
+  {id:'rp', name:'Residuals & Predictions', blurb:'Plug in, subtract, interpret', color:'var(--c6)'},
+];
+const TIERS = [{v:1,l:'Warm-up'},{v:2,l:'Apply it'},{v:3,l:'Test-level'}];
+const PCOL = ['var(--p1)','var(--p2)','var(--p3)'];
+
+/* ============ SVG charts ============ */
+function niceStep(range,count){ const raw=range/count, p=10**Math.floor(Math.log10(raw)), m=raw/p; return (m<1.5?1:m<3?2:m<7?5:10)*p; }
+function scatterSVG(pts,o={}){
+  const W=420,H=300,L=58,R=16,T=16,B=50;
+  let xs=pts.map(p=>p[0]), ys=pts.map(p=>p[1]);
+  let x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
+  if(o.line){ /* keep line inside */ }
+  const xp=(x1-x0)*0.08||1, yp=(y1-y0)*0.1||1; x0-=xp; x1+=xp; y0-=yp; y1+=yp;
+  const xs1=niceStep(x1-x0,6), ys1=niceStep(y1-y0,5);
+  x0=Math.floor(x0/xs1)*xs1; x1=Math.ceil(x1/xs1)*xs1; y0=Math.floor(y0/ys1)*ys1; y1=Math.ceil(y1/ys1)*ys1;
+  const X=x=>L+(x-x0)/(x1-x0)*(W-L-R), Y=y=>H-B-(y-y0)/(y1-y0)*(H-T-B);
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria||'Scatterplot')}">`;
+  s+=`<rect x="${L}" y="${T}" width="${W-L-R}" height="${H-T-B}" fill="var(--paper)" stroke="none"/>`;
+  const xd = xs1<1 ? 1 : 0, yd = ys1<1 ? (ys1<0.1?2:1) : 0;
+  for(let v=x0; v<=x1+1e-9; v+=xs1){ s+=`<line x1="${X(v)}" x2="${X(v)}" y1="${T}" y2="${H-B}" stroke="var(--grid)" stroke-width="1"/>`;
+    if(!o.noTicks) s+=`<text x="${X(v)}" y="${H-B+18}" font-size="12" text-anchor="middle" fill="var(--muted)" font-family="var(--mono)">${fmt(v,xd)}</text>`; }
+  for(let v=y0; v<=y1+1e-9; v+=ys1){ s+=`<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)" stroke-width="1"/>`;
+    if(!o.noTicks) s+=`<text x="${L-8}" y="${Y(v)+4}" font-size="12" text-anchor="end" fill="var(--muted)" font-family="var(--mono)">${o.money?'$'+fmt(v/1000,1)+'k':fmt(v,yd)}</text>`; }
+  s+=`<line x1="${L}" x2="${W-R}" y1="${H-B}" y2="${H-B}" stroke="var(--ink)" stroke-width="1.5"/><line x1="${L}" x2="${L}" y1="${T}" y2="${H-B}" stroke="var(--ink)" stroke-width="1.5"/>`;
+  if(o.line){ const [a,b]=o.line; s+=`<line x1="${X(x0)}" y1="${Y(a+b*x0)}" x2="${X(x1)}" y2="${Y(a+b*x1)}" stroke="var(--accent)" stroke-width="2" stroke-dasharray="6 4" clip-path="inset(0)"/>`; }
+  pts.forEach((p,i)=>{ s+=`<circle cx="${X(p[0])}" cy="${Y(p[1])}" r="5.5" fill="var(--ink)" stroke="var(--card)" stroke-width="1.5"/>`;
+    if(o.labels) s+=`<text x="${X(p[0])+9}" y="${Y(p[1])+5}" font-size="14" font-style="italic" fill="var(--ink)" font-family="var(--body)">${o.labels[i]}</text>`; });
+  s+=`<text x="${(L+W-R)/2}" y="${H-8}" font-size="13" text-anchor="middle" fill="var(--ink)" font-weight="700" font-family="var(--body)">${esc(o.xl||'x')}</text>`;
+  s+=`<text transform="translate(16 ${(T+H-B)/2}) rotate(-90)" font-size="13" text-anchor="middle" fill="var(--ink)" font-weight="700" font-family="var(--body)">${esc(o.yl||'y')}</text>`;
+  return s+'</svg>';
+}
+function segBarSVG(groups,pcts,A,B,xl){
+  const W=420,H=300,L=50,R=12,T=40,Bt=50, bw=70, gap=(W-L-R-bw*groups.length)/(groups.length+1);
+  const Y=v=>H-Bt-(v/100)*(H-T-Bt);
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Segmented bar graph">`;
+  for(let v=0;v<=100;v+=20){ s+=`<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)"/><text x="${L-8}" y="${Y(v)+4}" font-size="12" text-anchor="end" fill="var(--muted)" font-family="var(--mono)">${v}</text>`; }
+  groups.forEach((g,i)=>{ const x=L+gap+i*(bw+gap), p=pcts[i];
+    s+=`<rect x="${x}" y="${Y(100)}" width="${bw}" height="${Y(p)-Y(100)}" fill="var(--ink)" opacity=".75"/>`;
+    s+=`<rect x="${x}" y="${Y(p)}" width="${bw}" height="${Y(0)-Y(p)}" fill="var(--grid)" stroke="var(--ink)" stroke-width="1"/>`;
+    s+=`<text x="${x+bw/2}" y="${H-Bt+18}" font-size="13" text-anchor="middle" fill="var(--ink)" font-family="var(--body)">${esc(g)}</text>`; });
+  s+=`<line x1="${L}" x2="${W-R}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--ink)" stroke-width="1.5"/>`;
+  s+=`<rect x="${L+10}" y="10" width="14" height="14" fill="var(--ink)" opacity=".75"/><text x="${L+30}" y="22" font-size="13" fill="var(--ink)" font-family="var(--body)">${esc(B)}</text>`;
+  s+=`<rect x="${L+190}" y="10" width="14" height="14" fill="var(--grid)" stroke="var(--ink)"/><text x="${L+210}" y="22" font-size="13" fill="var(--ink)" font-family="var(--body)">${esc(A)}</text>`;
+  s+=`<text x="${(L+W-R)/2}" y="${H-8}" font-size="13" text-anchor="middle" fill="var(--ink)" font-weight="700" font-family="var(--body)">${esc(xl)}</text>`;
+  s+=`<text transform="translate(14 ${(T+H-Bt)/2}) rotate(-90)" font-size="13" text-anchor="middle" fill="var(--ink)" font-weight="700" font-family="var(--body)">Percent</text>`;
+  return s+'</svg>';
+}
+
+/* ============ scatter generator ============ */
+function genScatter({dir=1,form='linear',strength='strong',outlier=false,n=16}){
+  const band={strong:[0.86,0.97],moderate:[0.56,0.76],weak:[0.22,0.44]}[strength];
+  for(let tries=0;tries<400;tries++){
+    let pts=[];
+    for(let i=0;i<n;i++){ const x=rd(rnd(1,10),1); let y;
+      if(form==='curved'){ const base = dir>0 ? 2+32*Math.exp(-0.42*(10.5-x)) : 2+32*Math.exp(-0.42*(x-0.5)); y=base+gauss()*0.9; }
+      else if(dir===0){ y=20+gauss()*4; }
+      else { const sd={strong:1.4,moderate:3.4,weak:6.5}[strength]; y=12+dir*2*x+(dir<0?20:0)+gauss()*sd; }
+      pts.push([x,rd(y,1)]); }
+    const r=corr(pts).r;
+    if(form==='linear'){ if(dir===0){ if(Math.abs(r)>0.15) continue; } else if(Math.sign(r)!==dir || Math.abs(r)<band[0] || Math.abs(r)>band[1]) continue; }
+    if(outlier){ const x=rd(rnd(3.5,7.5),1); const c=corr(pts); const yhat = form==='curved' ? (dir>0?2+32*Math.exp(-0.42*(10.5-x)):2+32*Math.exp(-0.42*(x-0.5))) : c.a+c.b*x;
+      const sd = Math.max(4, Math.sqrt(pts.reduce((s,p)=>s+(p[1]-(c.a+c.b*p[0]))**2,0)/n));
+      let y = yhat + (Math.random()<0.5?-1:1)*Math.max(14,4.2*sd); if(y<0) y=yhat+Math.max(14,4.2*sd);
+      pts.push([x,rd(y,1)]); }
+    return {pts, r:corr(pts).r};
+  }
+  return genScatter({dir,form,strength,outlier,n});
+}
+
+/* ============ regression contexts ============ */
+const CTX = [
+ {id:'height', x:"father's height", y:"son's height", xUnits:'inches', yUnits:'inches', xl:'Height of father (in)', yl:'Height of son (in)',
+  xStep:"additional inch of father's height", yStep:"additional inch of son's height", xr:[62,77], xd:0, cx:69, cy:69, b:[0.55,0.85], bd:2, ad:1, yd:0, noise:2,
+  meaningful:false, interp:a=>`a father who is 0 inches tall would have a son with a predicted height of ${fmt(a,1)} inches`, reason:'no father is 0 inches tall, and 0 is far outside the data',
+  item:(x,y)=>`the father who is ${fmt(x,1)} inches tall whose son is ${fmt(y,1)} inches tall`, pred:x=>`the son of a father who is ${fmt(x,1)} inches tall`, team:true},
+ {id:'study', x:'hours studied', y:'test score', xUnits:'hours', yUnits:'points', xl:'Hours studied', yl:'Test score',
+  xStep:'additional hour of studying', yStep:'additional point on the test', xr:[0,8], xd:1, cx:4, cy:78, b:[3.5,6.5], bd:1, ad:1, yd:0, noise:5,
+  meaningful:true, interp:a=>`a student who studies 0 hours has a predicted test score of ${fmt(a,1)} points`, reason:'',
+  item:(x,y)=>`the student who studied ${fmt(x,1)} hours and scored ${fmt(y,1)} points`, pred:x=>`a student who studies ${fmt(x,1)} hours`, team:true},
+ {id:'car', x:'age of the car', y:'price', xUnits:'years', yUnits:'dollars', money:true, xl:'Age of car (years)', yl:'Price ($)',
+  xStep:'additional year of age', yStep:'additional dollar of price', xr:[1,12], xd:0, cx:6, cy:15000, b:[-2200,-1200], bd:0, ad:0, yd:0, noise:1500,
+  meaningful:true, interp:a=>`a brand-new car (0 years old) has a predicted price of $${fmt(a,0)}`, reason:'',
+  item:(x,y)=>`the ${fmt(x,0)}-year-old car that sold for $${fmt(y,0)}`, pred:x=>`a car that is ${fmt(x,0)} years old`},
+ {id:'temp', x:'daily high temperature', y:'ice cream cones sold', xUnits:'degrees F', yUnits:'cones', xl:'High temperature (°F)', yl:'Cones sold',
+  xStep:'additional degree of temperature', yStep:'additional cone sold', xr:[60,95], xd:0, cx:78, cy:220, b:[4,7], bd:1, ad:1, yd:0, noise:18,
+  meaningful:false, interp:a=>`on a 0°F day the shop would sell a predicted ${sgn(a,1)} cones`, reason:'0°F is far outside the data (60–95°F), and you cannot sell a negative number of cones',
+  item:(x,y)=>`the ${fmt(x,0)}°F day when the shop sold ${fmt(y,0)} cones`, pred:x=>`a day with a high of ${fmt(x,0)}°F`},
+ {id:'weight', x:'car weight (thousands of pounds)', y:'highway gas mileage', xUnits:'thousand pounds', yUnits:'mpg', xl:'Weight (1000s of lb)', yl:'Highway mpg',
+  xStep:'additional 1,000 pounds of weight', yStep:'additional mile per gallon', xr:[2,5], xd:1, cx:3.5, cy:30, b:[-7,-4], bd:2, ad:1, yd:1, noise:2,
+  meaningful:false, interp:a=>`a car that weighs 0 pounds would get a predicted ${fmt(a,1)} mpg`, reason:'a car cannot weigh 0 pounds',
+  item:(x,y)=>`the ${fmt(x*1000,0)}-pound car that gets ${fmt(y,1)} mpg`, pred:x=>`a car that weighs ${fmt(x*1000,0)} pounds`},
+ {id:'arm', x:'arm span', y:'height', xUnits:'cm', yUnits:'cm', xl:'Arm span (cm)', yl:'Height (cm)',
+  xStep:'additional centimeter of arm span', yStep:'additional centimeter of height', xr:[150,195], xd:0, cx:170, cy:170, b:[0.8,0.95], bd:2, ad:1, yd:0, noise:4,
+  meaningful:false, interp:a=>`a person with a 0 cm arm span would have a predicted height of ${fmt(a,1)} cm`, reason:'nobody has an arm span of 0 cm',
+  item:(x,y)=>`the person with a ${fmt(x,0)} cm arm span who is ${fmt(y,0)} cm tall`, pred:x=>`a person with a ${fmt(x,0)} cm arm span`, team:true},
+ {id:'abs', x:'number of absences', y:'final grade', xUnits:'absences', yUnits:'points', xl:'Absences', yl:'Final grade (%)',
+  xStep:'additional absence', yStep:'additional point of final grade', xr:[0,15], xd:0, cx:6, cy:82, b:[-3,-1.5], bd:1, ad:1, yd:0, noise:4,
+  meaningful:true, interp:a=>`a student with 0 absences has a predicted final grade of ${fmt(a,1)}`, reason:'',
+  item:(x,y)=>`the student with ${fmt(x,0)} absences who earned a ${fmt(y,0)}`, pred:x=>`a student with ${fmt(x,0)} absences`, team:true},
+ {id:'tv', x:'hours of TV per week', y:'reading score', xUnits:'hours', yUnits:'points', xl:'TV hours per week', yl:'Reading score',
+  xStep:'additional hour of TV per week', yStep:'additional point of reading score', xr:[0,30], xd:0, cx:14, cy:72, b:[-1.2,-0.5], bd:2, ad:1, yd:0, noise:5,
+  meaningful:true, interp:a=>`a child who watches 0 hours of TV per week has a predicted reading score of ${fmt(a,1)}`, reason:'',
+  item:(x,y)=>`the child who watches ${fmt(x,0)} hours of TV and scored ${fmt(y,0)}`, pred:x=>`a child who watches ${fmt(x,0)} hours of TV per week`, team:true},
+ {id:'screen', x:'daily screen time', y:'hours of sleep', xUnits:'hours', yUnits:'hours', xl:'Screen time (hours/day)', yl:'Sleep (hours)',
+  xStep:'additional hour of screen time', yStep:'additional hour of sleep', xr:[0,9], xd:1, cx:5, cy:7.2, b:[-0.6,-0.3], bd:2, ad:1, yd:1, noise:0.5,
+  meaningful:true, interp:a=>`a student with 0 hours of screen time gets a predicted ${fmt(a,1)} hours of sleep`, reason:'',
+  item:(x,y)=>`the student with ${fmt(x,1)} hours of screen time who sleeps ${fmt(y,1)} hours`, pred:x=>`a student with ${fmt(x,1)} hours of screen time`},
+];
+function yAmt(c,v){ const d = c.money?0:2; return c.money ? (v<0?MINUS:'')+'$'+fmt(Math.abs(v),0) : `${sgn(v,d)} ${c.yUnits}`; }
+function makeLine(c){
+  let b = rd(rnd(...c.b), c.bd); if(c.money) b = Math.round(b/10)*10;
+  let a = c.cy - b*c.cx + (c.money?0:gauss()*c.noise*0.3); a = c.money ? Math.round(a/100)*100 : rd(a,c.ad);
+  return {a,b};
+}
+function xIn(c){ return rd(rnd(c.xr[0]+(c.xr[1]-c.xr[0])*0.1, c.xr[1]-(c.xr[1]-c.xr[0])*0.05), c.xd); }
+function yhat(a,b,x,c){ return rd(a+b*x, 6); }
+
+/* ============ question banks ============ */
+/* MC item: {p, ch:[correct, ...wrong], ex} ; correct is always index 0 before shuffling */
+const MC = {
+ 'r-1':[
+  {p:'The correlation coefficient r is always between which two values?', ch:['−1 and 1','0 and 1','−100 and 100','There is no limit'], ex:'r is always between −1 and 1. Values near ±1 are strong; near 0 is weak.'},
+  {p:'What are the units of the correlation r?', ch:['r has no units','The units of x','The units of y','The units of x times the units of y'], ex:'r is computed from standardized values (z-scores), so it has no units at all.'},
+  {p:'Correlation measures the direction and strength of what kind of relationship?', ch:['A linear relationship','Any relationship, including curved ones','A cause-and-effect relationship','Only positive relationships'], ex:'r only describes LINEAR relationships. A strong curve can still have a small r.'},
+  {p:'What does r = −1 mean?', ch:['All points fall exactly on a line that slopes downward','There is no relationship','The relationship is weak and negative','One variable causes the other to go down'], ex:'r = −1 is a perfect negative linear relationship: every point is exactly on a downhill line.'},
+  {p:'A scatterplot has r = 0.04. Which description fits best?', ch:['Almost no linear relationship','A strong positive relationship','A weak negative relationship','A perfect relationship'], ex:'r near 0 means almost no linear relationship. (There could still be a curved pattern, so always look at the graph.)'},
+ ],
+ 'r-2':[
+  {p:'If you switch which variable is x and which is y, what happens to r?', ch:['r stays the same','r changes sign','r becomes 1/r','r becomes 0'], ex:'Correlation does not care which variable is explanatory. Switching x and y does not change r.'},
+  {p:'A teacher adds 5 bonus points to every student\'s test score. The correlation between study time and test score was r = 0.72. What is r now?', ch:['0.72','0.77','5.72','It can\'t be determined'], ex:'Adding the same amount to every value shifts the points but does not change the pattern, so r is unchanged.'},
+  {p:'Which change to the data CAN change the correlation?', ch:['Adding a point far away from the overall pattern','Converting inches to centimeters','Multiplying every y-value by 2','Switching x and y'], ex:'Changing units, rescaling, and switching variables never change r. An outlier can change r a lot.'},
+ ],
+ 'r-3':[
+  {p:'A scatterplot shows a strong U-shaped curve. A student computes r = 0.05 and says "there is no relationship." What is wrong?', ch:['r only measures linear relationships; there is a strong curved relationship','Nothing; r = 0.05 means no relationship','The student should have gotten a negative r','r cannot be computed for curved data'], ex:'r measures LINEAR association only. A strong curved pattern can have r close to 0. Always graph the data first.'},
+  {p:'A point far from the overall linear pattern (an outlier) is added to a strong positive scatterplot. What usually happens to r?', ch:['r moves closer to 0 (the relationship looks weaker)','r gets closer to 1','r becomes negative no matter what','r does not change'], ex:'An outlier that does not follow the pattern usually weakens the correlation, pulling r toward 0.'},
+  {p:'Which correlation shows the STRONGEST relationship?', ch:['r = −0.88','r = 0.75','r = 0.10','r = −0.40'], ex:'Strength depends on how close r is to −1 or 1, not on the sign. |−0.88| = 0.88 is the largest.'},
+  {p:'A student reports r = 1.3 between hours of sleep and GPA. What should you conclude?', ch:['The student made a mistake; r can never be bigger than 1','The relationship is extremely strong','Sleep causes GPA to go up','The relationship is curved'], ex:'r is always between −1 and 1. A value of 1.3 is impossible, so there is a calculation error.'},
+  {p:'Which statement about r = −0.85 and r = 0.50 is true?', ch:['r = −0.85 shows a stronger relationship','r = 0.50 shows a stronger relationship because it is positive','They are equally strong','You can\'t compare positive and negative correlations'], ex:'Strength is about distance from 0. 0.85 > 0.50, so −0.85 is stronger. The negative sign only gives the direction.'},
+ ],
+ 'cz-1':[
+  {p:'A strong correlation between two variables proves that one causes the other.', ch:['False','True'], ex:'Correlation does not prove causation. A lurking variable or coincidence could explain it.'},
+  {p:'What is a lurking variable?', ch:['A variable not in the study that affects both x and y','The response variable','A point that falls far from the pattern','A variable with no units'], ex:'A lurking variable is hidden in the background and influences both variables, creating an association that is not cause and effect.'},
+  {p:'What is the best way to show that changing x actually causes y to change?', ch:['A well-designed randomized experiment','Find a correlation close to 1','Collect a very large observational data set','Make a scatterplot'], ex:'Only a randomized, controlled experiment can show cause and effect. Observational data can only show association.'},
+ ],
+ 'cz-3':[],
+ 'vb-1':[
+  {p:'The response variable is…', ch:['the outcome you measure (it goes on the y-axis)','the variable that explains or predicts (x-axis)','a variable that is hidden in the background','always the larger number'], ex:'Response = outcome (y-axis). Explanatory = the variable that explains or predicts (x-axis).'},
+  {p:'On a scatterplot, the explanatory variable goes on the…', ch:['horizontal (x) axis','vertical (y) axis','either axis; it does not matter','legend'], ex:'Explanatory goes on the horizontal x-axis; response goes on the vertical y-axis.'},
+ ],
+ 'si-1':[
+  {p:'In the equation ŷ = a + bx, what does ŷ ("y-hat") stand for?', ch:['The PREDICTED value of y','The actual value of y','The average of the x-values','The residual'], ex:'The hat means "predicted." ŷ is the value the line predicts, not the actual data value.'},
+ ],
+ 'rp-1':[
+  {p:'Which formula gives the residual?', ch:['residual = actual y − predicted y','residual = predicted y − actual y','residual = y − x','residual = slope × x'], ex:'Residual = actual − predicted = y − ŷ. Remember "A minus P" (like the A.P. test).'},
+  {p:'A point has a residual of 0. Where is it?', ch:['Exactly on the regression line','On the y-axis','Far above the line','At the mean of x'], ex:'Residual 0 means actual = predicted, so the point sits exactly on the line.'},
+ ],
+};
+
+/* ---- lurking scenarios ---- */
+const LURK = [
+ {x:'monthly ice cream sales', y:'number of drownings', dir:'positive', L:'temperature (hot summer weather)', q:'reduce drownings by banning ice cream'},
+ {x:'number of laptops per 1,000 people in a country', y:'average life expectancy', dir:'positive', L:'the wealth of the country', q:'raise life expectancy by giving out laptops'},
+ {x:'number of firefighters sent to a fire', y:'amount of damage', dir:'positive', L:'the size of the fire', q:'reduce damage by sending fewer firefighters'},
+ {x:'shoe size of elementary students', y:'reading score', dir:'positive', L:'the age of the student', q:'improve reading by buying kids bigger shoes'},
+ {x:'number of hospitals in a city', y:'number of deaths per year', dir:'positive', L:'the population of the city', q:'reduce deaths by closing hospitals'},
+ {x:'sunscreen sales', y:'number of sunburns treated', dir:'positive', L:'sunny summer weather', q:'prevent sunburns by selling less sunscreen'},
+ {x:'number of churches in a town', y:'number of restaurants', dir:'positive', L:'the population of the town', q:'bring in restaurants by building churches'},
+ {x:'hours of piano lessons a student has taken', y:'SAT score', dir:'positive', L:'family income', q:'raise SAT scores by requiring piano lessons'},
+ {x:'number of TVs in a home', y:'life expectancy of the people living there', dir:'positive', L:'household income', q:'live longer by buying more TVs'},
+ {x:'daily hot chocolate sales', y:'number of snow-day school closings', dir:'positive', L:'cold winter weather', q:'prevent snow days by selling less hot chocolate'},
+];
+/* ---- explanatory / response ---- */
+const EXPL = [
+ ['hours of TV watched per week','reading score'],['amount of fertilizer (grams)','plant height'],['hours of sleep the night before','reaction time'],
+ ['outside temperature','hot cocoa sales'],['age of a used car','its price'],['dose of a blood-pressure medicine','blood pressure'],
+ ['hours spent practicing free throws','free-throw percentage'],['amount of rainfall in a season','corn yield'],['speed of a car','stopping distance'],
+ ['number of absences','final grade'],['hours studied','exam score'],['minutes of exercise per day','resting heart rate'],
+];
+/* ---- segmented bar contexts ---- */
+const SEG = [
+ {xl:'Age group', groups:['16–34','35–54','55+'], A:'Low violence', B:'High violence', thing:'whether a person is a low- or high-violence TV viewer', gname:'age group'},
+ {xl:'Grade', groups:['9th','10th','11th','12th'], A:'Buys lunch', B:'Brings lunch', thing:'whether a student buys or brings lunch', gname:'grade level'},
+ {xl:'Region', groups:['Urban','Suburban','Rural'], A:'Owns a pet', B:'No pet', thing:'whether a household owns a pet', gname:'region'},
+ {xl:'Sport played', groups:['Soccer','Hockey','Track'], A:'Wears glasses', B:'No glasses', thing:'whether an athlete wears glasses', gname:'sport'},
+ {xl:'Phone type', groups:['Brand A','Brand B','Brand C'], A:'Satisfied', B:'Not satisfied', thing:'whether a customer is satisfied', gname:'phone type'},
+ {xl:'Class period', groups:['Period 1','Period 4','Period 7'], A:'Passed quiz', B:'Did not pass', thing:'whether a student passed the quiz', gname:'class period'},
+];
+
+/* ============ generators ============ */
+function mcQ(item){ return {type:'mc', prompt:item.p, choices:item.ch, ans:0, ex:item.ex, vis:item.vis}; }
+const used = {};
+function fromBank(key){
+  const bank = MC[key]; if(!bank || !bank.length) return null;
+  used[key] = used[key] || []; if(used[key].length >= bank.length) used[key]=[];
+  const avail = bank.map((_,i)=>i).filter(i=>!used[key].includes(i)); const i = pick(avail); used[key].push(i);
+  return mcQ(bank[i]);
+}
+const UNITS = [
+ {x:"fathers' heights (inches)", y:"sons' heights (inches)", change:"the sons' heights were measured in feet instead of inches", wrong:'÷12'},
+ {x:'daily high temperature (°F)', y:'ice cream sales', change:'the temperatures were converted to degrees Celsius', wrong:'converted with the °C formula'},
+ {x:'hours studied', y:'test score (points)', change:'study time was recorded in minutes instead of hours', wrong:'×60'},
+ {x:'car weight (pounds)', y:'gas mileage (mpg)', change:'car weight was recorded in kilograms instead of pounds', wrong:'÷2.2'},
+ {x:'arm span (cm)', y:'height (cm)', change:'both measurements were converted to inches', wrong:'÷2.54'},
+];
+const GEN = {
+ 'r-1':[ ()=>fromBank('r-1'),
+   ()=>{ const vals = shuffle([rd(rnd(0.82,0.96),2)*(Math.random()<.5?-1:1), rd(rnd(0.55,0.75),2), rd(rnd(0.02,0.2),2), -rd(rnd(0.3,0.5),2)]);
+     const best = vals.reduce((m,v)=>Math.abs(v)>Math.abs(m)?v:m);
+     return {type:'mc', prompt:'Which correlation shows the strongest linear relationship?', choices:[best,...vals.filter(v=>v!==best)].map(v=>'r = '+sgn(v,2)), ans:0,
+       ex:`Strength is how close r is to −1 or 1. The sign only tells direction. ${sgn(best,2)} is farthest from 0.`}; } ],
+ 'r-2':[ ()=>fromBank('r-2'),
+   ()=>{ const u=pick(UNITS), r=rd(rnd(0.6,0.95),2)*(u.y.includes('mileage')?-1:1);
+     return {type:'mc', prompt:`The correlation between ${u.x} (x) and ${u.y} (y) is r = ${sgn(r,2)}. If ${u.change}, what would the correlation be?`,
+       choices:[`Unchanged; r = ${sgn(r,2)}`,`r changes because the numbers were ${u.wrong}`,`Slightly smaller in size than ${sgn(Math.abs(r),2)}`,`Slightly larger in size than ${sgn(Math.abs(r),2)}`], ans:0,
+       ex:'r has no units. Changing units (inches to feet, °F to °C, hours to minutes) never changes the correlation.'}; },
+   ()=>{ const strong = Math.random()<.5, pos=Math.random()<.5; const r = rd((strong?rnd(0.85,0.97):rnd(0.2,0.4))*(pos?1:-1),2);
+     const ctx = pick([['math scores','science scores','students'],['hours of practice','points scored per game','basketball players'],['male illiteracy rate','female illiteracy rate','countries'],['minutes of homework','hours of video games','students']]);
+     const hi = pos?'high':'low';
+     return {type:'mc', prompt:`For a group of ${ctx[2]}, the correlation between ${ctx[0]} and ${ctx[1]} is r = ${sgn(r,2)}. What does this tell us?`,
+       choices:[`${cap(ctx[2])} with high ${ctx[0]} tend to have ${hi} ${ctx[1]}, and the relationship is ${strong?'strong':'weak'}.`,
+                `${cap(ctx[2])} with high ${ctx[0]} tend to have ${hi} ${ctx[1]}, and the relationship is ${strong?'weak':'strong'}.`,
+                `${cap(ctx[2])} with high ${ctx[0]} tend to have ${pos?'low':'high'} ${ctx[1]}, and the relationship is ${strong?'strong':'weak'}.`,
+                `${cap(ctx[2])} with high ${ctx[0]} tend to have ${pos?'low':'high'} ${ctx[1]}, and the relationship is ${strong?'weak':'strong'}.`], ans:0,
+       ex:`The sign gives direction (${pos?'positive: both go up together':'negative: as one goes up, the other goes down'}). |r| = ${fmt(Math.abs(r),2)} is ${strong?'close to 1, so strong':'close to 0, so weak'}.`}; } ],
+ 'r-3':[ ()=>fromBank('r-3') ],
+ 'cz-1':[ ()=>fromBank('cz-1') ],
+ 'cz-2':[
+   ()=>{ const s=pick(LURK); const others = shuffle(LURK.filter(o=>o!==s && o.L!==s.L)).slice(0,2).map(o=>o.L);
+     return {type:'mc', prompt:`There is a strong positive association between ${s.x} and ${s.y}. Which is the most likely lurking variable?`,
+       choices:[cap(s.L), ...others.map(cap), cap(s.y)], ans:0,
+       ex:`${cap(s.L)} affects BOTH ${s.x} and ${s.y}, so they rise and fall together even though one does not cause the other.`}; },
+   ()=>{ const s=pick(LURK);
+     return {type:'mc', prompt:`Data show a strong positive correlation between ${s.x} and ${s.y}. Does this mean we could ${s.q}?`,
+       choices:['No. Correlation alone does not show causation; a lurking variable could explain the association.',
+                'Yes. A strong correlation shows that one variable causes the other.',
+                'Yes, but only if r is greater than 0.9.',
+                'No, because a positive correlation means there is no relationship.'], ans:0,
+       ex:`This is observational data, so it only shows association. Here ${s.L} is a likely lurking variable that drives both.`}; } ],
+ 'cz-3':[
+   ()=>{ const s=pick(LURK);
+     return {type:'fr', prompt:`A study finds a strong positive association between <b>${s.x}</b> and <b>${s.y}</b>. Explain why this does NOT prove that one causes the other. Name a lurking variable and explain how it affects <i>both</i> variables.`,
+       model:`Correlation does not mean causation. A lurking variable is <b>${s.L}</b>. When ${s.L} increases, ${s.x} tends to increase, and ${s.y} also tends to increase. So the two variables move together because of ${s.L}, not because one causes the other.`,
+       rubric:['Says correlation (or association) does not prove causation','Names a reasonable lurking variable','Explains how that variable affects BOTH x and y']}; },
+   ()=>({type:'mc', prompt:'Across many countries there is a NEGATIVE correlation between laptops per 1,000 people and infant death rate. Which conclusion is best?',
+       choices:['The data show an association only; wealth could be a lurking variable that leads to more laptops and fewer infant deaths.','Giving out laptops will lower infant death rates.','Because the correlation is negative, the variables are unrelated.','More laptops cause more infant deaths.'], ans:0,
+       ex:'Negative just means one goes up as the other goes down. It is still only an association, and country wealth is a likely lurking variable.'}) ],
+ 'vb-1':[ ()=>fromBank('vb-1'),
+   ()=>{ const [e,r]=pick(EXPL); return {type:'mc', prompt:`A researcher studies whether <b>${e}</b> helps predict <b>${r}</b>. Which is the explanatory variable?`,
+       choices:[cap(e), cap(r), 'Neither; both are response variables','The correlation r'], ans:0, ex:`${cap(e)} is used to explain or predict ${r}, so it is explanatory (x-axis). ${cap(r)} is the response (y-axis).`}; } ],
+ 'vb-2':[
+   ()=>{ const [e,r]=pick(EXPL); return {type:'mc', prompt:`A study measured <b>${e}</b> and <b>${r}</b> for each subject. Which variable should go on the horizontal axis of a scatterplot?`,
+       choices:[`${cap(e)}, because it is the explanatory variable`,`${cap(e)}, because it is the response variable`,`${cap(r)}, because it is the response variable`,`${cap(r)}, because it is the explanatory variable`], ans:0,
+       ex:`The horizontal (x) axis gets the explanatory variable. ${cap(e)} explains or predicts ${r}. You need the right variable AND the right reason.`}; } ],
+ 'vb-3':[
+   ()=>{ const c=pick(SEG), assoc=Math.random()<0.6; let p;
+     if(assoc){ const base=ri(18,35); p=c.groups.map((_,i)=>Math.min(90, base + i*ri(14,24))); if(Math.random()<.5) p.reverse(); }
+     else { const m=ri(30,70); p=c.groups.map(()=>m+ri(-3,3)); }
+     const vis = segBarSVG(c.groups,p,c.A,c.B,c.xl);
+     return {type:'mc', vis, prompt:`The segmented bar graph shows ${c.thing} for each ${c.gname}. Is there an association between ${c.gname} and ${c.thing}?`,
+       choices: assoc ? [`Yes. Knowing the ${c.gname} helps predict ${c.thing}, because the percent "${c.A}" changes a lot from bar to bar.`, `No. Knowing the ${c.gname} does not help predict ${c.thing}.`, `No. Every bar has both "${c.A}" and "${c.B}," so there is no association.`, `Yes, because within each bar the percent "${c.A}" is different from the percent "${c.B}."`]
+                      : [`No. The percent "${c.A}" is about the same in every bar, so knowing the ${c.gname} does not help predict ${c.thing}.`, `Yes. Knowing the ${c.gname} helps predict ${c.thing}.`, `Yes, because within each bar the percent "${c.A}" is different from the percent "${c.B}."`, `No, because there are both "${c.A}" and "${c.B}" in each group.`], ans:0,
+       ex:`Compare the SAME segment ACROSS bars (${c.groups.map((g,i)=>`${g}: ${p[i]}%`).join(', ')}). ${assoc?'The percents differ a lot, so there IS an association.':'The percents are nearly equal, so there is NO association.'} Comparing the two parts inside one bar does not tell you anything about association.`}; } ],
+ 'df-1':[
+   ()=>{ const dir=pick([1,-1,0]); const g=genScatter({dir, strength: dir?pick(['strong','moderate']):'weak'});
+     return {type:'mc', vis:scatterSVG(g.pts), prompt:'What is the DIRECTION of the association in this scatterplot?',
+       choices:[dir>0?'Positive':dir<0?'Negative':'No clear direction (no association)', ...['Positive','Negative','No clear direction (no association)'].filter(s=>s!==(dir>0?'Positive':dir<0?'Negative':'No clear direction (no association)'))], ans:0,
+       ex: dir>0?'As x increases, y tends to increase: positive.': dir<0?'As x increases, y tends to decrease: negative.':'The points form a shapeless cloud; y does not go up or down as x increases.'}; },
+   ()=>{ const form=pick(['linear','curved']); const dir=pick([1,-1]); const g=genScatter({dir,form,strength:'strong'});
+     return {type:'mc', vis:scatterSVG(g.pts), prompt:'What is the FORM of this scatterplot?', choices: form==='linear'?['Linear','Curved (nonlinear)']:['Curved (nonlinear)','Linear'], ans:0,
+       ex: form==='linear'?'The points follow a straight-line pattern.':'The points bend; the pattern is steep at one end and flattens out at the other, so a straight line would not fit well.'}; },
+   ()=>{ const out=Math.random()<.6; const g=genScatter({dir:pick([1,-1]),strength:'strong',outlier:out});
+     return {type:'mc', vis:scatterSVG(g.pts), prompt:'Does this scatterplot have an outlier?', choices: out?['Yes, one point falls far from the overall pattern','No outliers']:['No outliers','Yes, one point falls far from the overall pattern'], ans:0,
+       ex: out?'One point is far above or below where the pattern says it should be. Always mention it when you describe a scatterplot.':'Every point follows the overall pattern fairly closely.'}; } ],
+ 'df-2':[
+   ()=>{ const dir=pick([1,-1]); const st=pick(['strong','moderate','weak']); const g=genScatter({dir,strength:st}); const r=rd(g.r,2);
+     const pool=[0.95,0.75,0.5,0.25].filter(v=>Math.abs(v-Math.abs(r))>0.17);
+     const ws = shuffle(pool).slice(0,2).map(v=>rd(v*Math.sign(r),2)); const ch=[r, -r, ...ws];
+     return {type:'mc', vis:scatterSVG(g.pts), prompt:'Which value is the best estimate of the correlation r for this scatterplot?', choices:ch.map(v=>'r = '+sgn(v,2)), ans:0,
+       ex:`Direction: ${r>0?'positive':'negative'}, so r ${r>0?'> 0':'< 0'}. Strength: ${st} (${st==='strong'?'tightly packed around a line':st==='moderate'?'a clear trend with some scatter':'a lot of scatter'}). Actual r ≈ ${sgn(r,2)}.`}; },
+   ()=>{ const st=pick(['strong','moderate','weak']); const g=genScatter({dir:pick([1,-1]),strength:st});
+     return {type:'mc', vis:scatterSVG(g.pts), prompt:'How would you describe the STRENGTH of this relationship?', choices:[cap(st),...['strong','moderate','weak'].filter(s=>s!==st).map(cap)], ans:0,
+       ex:`r ≈ ${sgn(g.r,2)}. Rough guide: |r| above 0.8 is strong, 0.5–0.8 is moderate, below 0.5 is weak.`}; } ],
+ 'df-3':[
+   ()=>{ const form=Math.random()<.25?'curved':'linear'; const dir=pick([1,-1]); const st=form==='curved'?'strong':pick(['strong','moderate','weak']); const out=Math.random()<.5;
+     const g=genScatter({dir,form,strength:st,outlier:out});
+     return {type:'dfso', vis:scatterSVG(g.pts), prompt:'Describe this scatterplot completely. Choose the correct <b>Direction, Form, Strength,</b> and <b>Outliers</b>. (This is what test question 7a asks for.)',
+       ans:{Direction:dir>0?'Positive':'Negative', Form:form==='linear'?'Linear':'Curved', Strength:cap(st), Outliers:out?'One clear outlier':'No outliers'},
+       opts:{Direction:['Positive','Negative','No direction'],Form:['Linear','Curved'],Strength:['Strong','Moderate','Weak'],Outliers:['No outliers','One clear outlier']},
+       ex:`A full answer sounds like: "There is a ${st}, ${dir>0?'positive':'negative'}, ${form==='linear'?'linear':'curved'} relationship ${out?'with one outlier that falls far from the pattern':'with no obvious outliers'}." On the test, write it in context using the variable names.`}; } ],
+ 'si-1':[ ()=>fromBank('si-1'),
+   ()=>{ const c=pick(CTX), {a,b}=makeLine(c); const eq=eqStr(a,b,c.ad,c.bd);
+     return {type:'mc', prompt:`A line for predicting ${c.y} from ${c.x} is <span class="eq">${eq}</span>. What is the slope?`, choices:[sgn(b,c.bd), sgn(a,c.ad), sgn(-b,c.bd), 'x'], ans:0,
+       ex:`In ŷ = a + bx the slope is the number multiplied by x: ${sgn(b,c.bd)}. The y-intercept is ${sgn(a,c.ad)}.`}; } ],
+ 'si-2':[
+   ()=>{ const c=pick(CTX), {a,b}=makeLine(c); const eq=eqStr(a,b,c.ad,c.bd); const up=b>0, amt=c.money?'$'+fmt(Math.abs(b),0):`${fmt(Math.abs(b),c.bd)} ${c.yUnits}`;
+     const xamt = `${fmt(Math.abs(b),c.bd)} ${c.xUnits}`;
+     return {type:'mc', prompt:`The line <span class="eq">${eq}</span> predicts ${c.y} (y) from ${c.x} (x). Which is the correct interpretation of the slope?`,
+       choices:[`For each ${c.xStep}, the predicted ${c.y} ${up?'increases':'decreases'} by about ${amt}.`,
+                `For each ${c.yStep}, the predicted ${c.x} ${up?'increases':'decreases'} by about ${xamt}.`,
+                `When ${c.x} is 0, the predicted ${c.y} is ${c.money?'$'+fmt(b,0):fmt(b,c.bd)}.`,
+                `For each ${c.xStep}, the predicted ${c.y} ${up?'decreases':'increases'} by about ${amt}.`], ans:0,
+       ex:`Template: "For each additional [x unit], the PREDICTED [y] ${up?'increases':'decreases'} by about [slope] [y units]." The slope is ${sgn(b,c.bd)}, so it ${up?'increases':'decreases'}. Don't flip x and y, and don't confuse slope with intercept.`}; } ],
+ 'si-3':[
+   ()=>{ const c=pick(CTX), {a,b}=makeLine(c); const eq=eqStr(a,b,c.ad,c.bd); const A=c.money?'$'+fmt(a,0):sgn(a,c.ad), Bv=c.money?'$'+fmt(b,0):sgn(b,c.bd);
+     const yes=`Yes: ${c.interp(a)}, which makes sense.`; const no = c.meaningful ? 'No: a y-intercept never has a meaning in context.' : `No: ${c.reason}.`;
+     const ch = c.meaningful ? [`${A}. ${yes}`, `${A}. ${no}`, `${Bv}. ${yes.replace(/ ?which makes sense\./,'.')}`, `${Bv}. No: the intercept is the slope.`]
+                             : [`${A}. ${no}`, `${A}. Yes: ${c.interp(a)}.`, `${Bv}. No: ${c.reason}.`, `${Bv}. Yes, it always has meaning.`];
+     return {type:'mc', prompt:`The line <span class="eq">${eq}</span> predicts ${c.y} from ${c.x} (data range: ${c.x} from ${fmt(c.xr[0],1)} to ${fmt(c.xr[1],1)}). What is the y-intercept, and does it have meaning in context?`,
+       choices:ch, ans:0, ex:`The y-intercept is the constant term, ${A}. Ask: "Does x = 0 make sense here, and is it near the data?" ${c.meaningful?'Here it does: '+c.interp(a)+'.':'Here it does not: '+c.reason+'.'}`}; },
+   ()=>{ const c=pick(CTX), {a,b}=makeLine(c); const eq=eqStr(a,b,c.ad,c.bd); const up=b>0, amt=c.money?'$'+fmt(Math.abs(b),0):`${fmt(Math.abs(b),c.bd)} ${c.yUnits}`;
+     return {type:'fr', prompt:`On paper or out loud: the line <span class="eq">${eq}</span> predicts ${c.y} (y) from ${c.x} (x). <b>Interpret the slope in context.</b> Then partners check the answer against the model.`,
+       model:`For each ${c.xStep}, the <b>predicted</b> ${c.y} ${up?'increases':'decreases'} by about <b>${amt}</b>.`,
+       rubric:[`Uses the correct slope value and direction (${up?'increases':'decreases'} by ${amt})`,`Talks about BOTH variables in context (${c.x} and ${c.y})`,'Says "predicted" (or "on average"), not a guarantee']}; } ],
+ 'rp-1':[ ()=>fromBank('rp-1'),
+   ()=>{ const c=pick(CTX), {a,b}=makeLine(c), x=xIn(c), yh=yhat(a,b,x,c);
+     return {type:'num', prompt:`Use <span class="eq">${eqStr(a,b,c.ad,c.bd)}</span> to predict the ${c.y} for ${c.pred(x)}.`, num:yh, unit:c.money?'$':c.yUnits, tol:c.money?5:0.06,
+       ex:`Substitute x = ${fmt(x,c.xd)}:`, work:`ŷ = ${sgn(a,c.ad)} ${b<0?'−':'+'} ${fmt(Math.abs(b),c.bd)}(${fmt(x,c.xd)})\nŷ = ${yAmt(c,yh)}`}; } ],
+ 'rp-2':[
+   ()=>{ const c=pick(CTX), {a,b}=makeLine(c), x=xIn(c), yh=yhat(a,b,x,c); let y = c.money ? Math.round((yh+gauss()*c.noise)/50)*50 : rd(yh + (Math.random()<.5?-1:1)*rnd(0.4,1.6)*c.noise, c.yd);
+     if(Math.abs(y-yh)<1e-6) y = rd(y+c.noise, c.yd); const res=rd(y-yh,6);
+     return {type:'num', prompt:`Using <span class="eq">${eqStr(a,b,c.ad,c.bd)}</span>, calculate the <b>residual</b> for ${c.item(x,y)}.`, num:res, unit:c.money?'$':c.yUnits, tol:c.money?5:0.06,
+       ex:'Residual = actual − predicted.', work:`Predicted: ŷ = ${sgn(a,c.ad)} ${b<0?'−':'+'} ${fmt(Math.abs(b),c.bd)}(${fmt(x,c.xd)}) = ${yAmt(c,yh)}\nResidual = ${c.money?'$'+fmt(y,0):fmt(y,c.yd)} − ${c.money?'$'+fmt(yh,0):fmt(yh,4)} = ${yAmt(c,res)}`}; } ],
+ 'rp-3':[
+   ()=>{ const c=pick(CTX.filter(c=>!c.money)); const res=rd(rnd(1.2,4.5)*(c.noise/2)*(Math.random()<.5?-1:1), c.yd===0?1:2); const neg=res<0; const amt=`${fmt(Math.abs(res),2)} ${c.yUnits}`;
+     return {type:'mc', prompt:`For one data point in a study of ${c.x} and ${c.y}, the residual is <b>${sgn(res,2)}</b>. What does this mean?`,
+       choices:[`The actual ${c.y} was ${amt} ${neg?'LESS':'MORE'} than the line predicted.`,`The actual ${c.y} was ${amt} ${neg?'MORE':'LESS'} than the line predicted.`,`The slope of the line is off by ${amt}.`,`The ${c.x} was ${amt} ${neg?'below':'above'} average.`], ans:0,
+       ex:`Residual = actual − predicted. A ${neg?'negative':'positive'} residual means the point is ${neg?'BELOW':'ABOVE'} the line: the line ${neg?'over':'under'}predicted.`}; },
+   ()=>{ const c=pick(CTX.filter(c=>c.id!=='car')), {a,b}=makeLine(c); const far = rd(c.xr[1] + (c.xr[1]-c.xr[0])*rnd(1.5,3), c.xd);
+     return {type:'mc', prompt:`Data were collected for ${c.x} from ${fmt(c.xr[0],1)} to ${fmt(c.xr[1],1)} ${c.xUnits}. The line is <span class="eq">${eqStr(a,b,c.ad,c.bd)}</span>. Should we trust it to predict the ${c.y} when x = ${fmt(far,c.xd)}?`,
+       choices:[`No. ${fmt(far,c.xd)} is far outside the data, so this is extrapolation and the prediction may be unreliable.`,'Yes. The equation works for any value of x.','Yes, as long as r is positive.','No, because predictions can only be made for x-values that are already in the data table.'], ans:0,
+       ex:'Predicting far outside the range of the data is called extrapolation. The pattern may not continue, so be cautious. (Predicting between data values is fine.)'}; },
+   ()=>{ const a=20, b=0.8, pts=[[63,62],[66,67],[68,68],[74,75],[76,69]]; const k=pick([0,1,2,3,4]); const [x,y]=pts[k]; const yh=rd(a+b*x,4), res=rd(y-yh,4);
+     return {type:'num', vis:scatterSVG(pts,{labels:['A','B','C','D','E'],xl:'Height of father (in)',yl:'Height of son (in)',line:[a,b]}),
+       prompt:`The trendline for these five fathers and sons is <span class="eq">ŷ = 0.80x + 20</span>. Calculate the residual for the father who is ${x} inches tall whose son is ${y} inches tall.`, num:res, unit:'inches', tol:0.06,
+       ex:'Residual = actual − predicted.', work:`ŷ = 0.80(${x}) + 20 = ${fmt(yh,2)}\nResidual = ${y} − ${fmt(yh,2)} = ${sgn(res,2)} inches`}; } ],
+};
+function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+function makeQuestion(cat,tier){
+  const fns = GEN[`${cat}-${tier}`]; let q=null, guard=0;
+  while(!q && guard++<10){ q = pick(fns)(); }
+  if(q.type==='mc'){ const order = shuffle(q.choices.map((c,i)=>i)); q.choices = order.map(i=>String(q.choices[i])); q.ans = order.indexOf(0); }
+  q.cat=cat; q.tier=tier; return q;
+}
+
+/* ============ team round (test simulator) ============ */
+function makeTeam(){
+  const c = pick(CTX.filter(c=>c.team));
+  const span=c.xr[1]-c.xr[0]; let xs=[];
+  while(xs.length<5){ const x=rd(c.xr[0]+span*rnd(0.02,0.98),c.xd); if(xs.every(v=>Math.abs(v-x)>span*0.08)) xs.push(x); }
+  xs.sort((p,q)=>p-q);
+  const b0=rnd(...c.b), a0=c.cy-b0*c.cx; const oi = pick([2,3,4]);
+  let ys = xs.map((x,i)=> rd(a0+b0*x + (i===oi ? (Math.random()<.5?-1:1)*c.noise*rnd(3,3.8) : gauss()*c.noise*0.45), c.yd));
+  const pts = xs.map((x,i)=>[x,ys[i]]); const L=corr(pts);
+  const b=rd(L.b,2), a=rd(L.a,1), r=L.r;
+  const labels=['A','B','C','D','E'];
+  const strength=Math.abs(r)>=0.8?'strong':Math.abs(r)>=0.5?'moderate':'weak';
+  const resK = pick([0,1,2,3,4].filter(i=>i!==oi)); const [rx,ry]=pts[resK]; const ryh=rd(a+b*rx,4), res=rd(ry-ryh,4);
+  let px; do { px = rd(rnd(c.xr[0]+span*0.1, c.xr[1]-span*0.1), c.xd); } while(xs.includes(px));
+  const pyh=rd(a+b*px,4); const up=b>0;
+  return {ctx:c.id, pts, labels, a, b, r, oi, strength, resK, res, ryh, px, pyh,
+    eq:eqStr(a,b,1,2),
+    parts:[
+     {k:'a', q:`Describe the relationship. Include Direction, Form, Strength, and Outliers.`,
+      model:`There is a ${strength}, ${up?'positive':'negative'}, linear relationship between ${c.x} and ${c.y} (r ≈ ${sgn(r,2)}). Point ${labels[oi]} is a possible outlier because it is far ${ys[oi] > a+b*xs[oi] ? 'above' : 'below'} the pattern of the other points.`,
+      rubric:[`Direction: ${up?'positive':'negative'}`,'Form: linear',`Strength: ${strength} (accept a neighboring word if explained)`,`Outlier: point ${labels[oi]}`]},
+     {k:'b', q:`If the equation of the trendline is ${eqStr(a,b,1,2)}, interpret the slope in context.`,
+      model:`For each ${c.xStep}, the <b>predicted</b> ${c.y} ${up?'increases':'decreases'} by about ${fmt(Math.abs(b),2)} ${c.yUnits}.`,
+      rubric:['Correct slope value and direction, with units','Uses context and says "predicted" (or "on average")']},
+     {k:'c', q:`What is the y-intercept? Does it have a meaning in context? Explain.`,
+      model:`The y-intercept is ${sgn(a,1)}. ${c.meaningful ? 'Yes: '+c.interp(a)+'.' : 'No. Literally, '+c.interp(a)+', but '+c.reason+'.'}`,
+      rubric:[`Intercept = ${sgn(a,1)}`,`Correct yes/no decision with a reason`]},
+     {k:'d', q:`Calculate the residual for ${c.item(rx,ry)} (point ${labels[resK]}). Show work.`,
+      model:`ŷ = ${sgn(a,1)} ${b<0?'−':'+'} ${fmt(Math.abs(b),2)}(${fmt(rx,c.xd)}) = ${fmt(ryh,3)}<br>Residual = actual − predicted = ${fmt(ry,c.yd)} − ${fmt(ryh,3)} = <b>${sgn(res,2)} ${c.yUnits}</b>`,
+      rubric:['Correct residual with work shown (actual − predicted)']},
+     {k:'e', q:`Use the trendline to predict the ${c.y} for ${c.pred(px)}. Show work.`,
+      model:`ŷ = ${sgn(a,1)} ${b<0?'−':'+'} ${fmt(Math.abs(b),2)}(${fmt(px,c.xd)}) = <b>${fmt(pyh,2)} ${c.yUnits}</b>`,
+      rubric:['Correct prediction with work shown']},
+    ]};
+}
+
+
+/* ============ completion codes ============ */
+const SALT='pk-statsB-u3';
+function fnv(str){ let h=0x811c9dc5; for(const ch of str){ h^=ch.charCodeAt(0); h=Math.imul(h,0x01000193)>>>0; } return h; }
+const b36=(n,w)=>Math.max(0,Math.min(36**w-1,Math.round(n))).toString(36).toUpperCase().padStart(w,'0');
+const normNames = arr => arr.map(n=>n.toLowerCase().replace(/[^a-z]/g,'')).filter(Boolean).sort().join('|');
+const EPOCH = Date.UTC(2026,0,1);
+function dayNum(d=new Date()){ return Math.floor((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())-EPOCH)/86400000); }
+function makeCode(){
+  const att=Object.values(S.stats).reduce((s,x)=>s+x.att,0), cor=Object.values(S.stats).reduce((s,x)=>s+x.cor,0);
+  const mins=Math.floor(elapsedMs()/60000);
+  const payload = b36(mins,2)+b36(S.turns,2)+b36(att,2)+b36(cor,2)+b36(S.teamDone,1)+b36(S.players.length,1)+b36(dayNum(),2);
+  const chk = b36(fnv(payload+SALT)%1296,2), nm = b36(fnv(normNames(S.players.map(p=>p.name))+SALT)%1296,2);
+  return {code:`BF-${payload.slice(0,4)}-${payload.slice(4,8)}-${payload.slice(8)}-${chk}${nm}`, mins, att, cor};
+}
+function checkCode(raw, namesRaw){
+  const c=raw.toUpperCase().replace(/[^0-9A-Z]/g,'').replace(/^BF/,'');
+  if(c.length!==16) return {ok:false, msg:'That code is the wrong length. It should look like BF-XXXX-XXXX-XXXX-XXXX.'};
+  const payload=c.slice(0,12), chk=c.slice(12,14), nm=c.slice(14,16);
+  if(b36(fnv(payload+SALT)%1296,2)!==chk) return {ok:false, msg:'Not a valid code. It may have been mistyped or made up.'};
+  const n=(i,w)=>parseInt(payload.slice(i,i+w),36);
+  const d=new Date(EPOCH + n(10,2)*86400000);
+  const out={ok:true, mins:n(0,2), turns:n(2,2), att:n(4,2), cor:n(6,2), team:n(8,1), players:n(9,1), date:d.toLocaleDateString('en-US',{timeZone:'UTC',weekday:'short',month:'short',day:'numeric',year:'numeric'})};
+  if(namesRaw.trim()){ const names=namesRaw.split(/[,;\n]+/); out.namesMatch = b36(fnv(normNames(names)+SALT)%1296,2)===nm; }
+  return out;
+}
+
+/* ============ state ============ */
+const SAVE_KEY='bestfit-v1';
+let S = null;
+let setup = {n:2, names:['','',''], len:60};
+function freshState(){
+  return {phase:'board', players: Array.from({length:setup.n},(_,i)=>({name:setup.names[i].trim()||`Player ${i+1}`, score:0, cats:[], bonus:false})),
+    turn:0, len:setup.len, start:Date.now(), pausedAt:null, pausedTotal:0, teamDone:0, teamPending:false, timeUp:false,
+    stats:Object.fromEntries(CATS.map(c=>[c.id,{att:0,cor:0}])), missed:[], q:null, team:null, turns:0};
+}
+function save(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} }
+function load(){ try{ const s=localStorage.getItem(SAVE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
+function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
+function elapsedMs(){ if(!S) return 0; const now = S.pausedAt || Date.now(); return now - S.start - S.pausedTotal; }
+
+/* ============ rendering ============ */
+const app = $('#app');
+function logo(){ return `<svg class="logo" viewBox="0 0 56 44" aria-hidden="true"><path d="M4 2V40H54" fill="none" stroke="var(--ink)" stroke-width="2.5"/><line x1="8" y1="36" x2="52" y2="6" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/><g fill="var(--ink)"><circle cx="13" cy="30" r="3"/><circle cx="21" cy="29" r="3"/><circle cx="27" cy="21" r="3"/><circle cx="36" cy="19" r="3"/><circle cx="44" cy="10" r="3"/><circle cx="46" cy="27" r="3"/></g></svg>`; }
+function mast(sub){ return `<header class="mast">${logo()}<div><h1>Best Fit Showdown</h1><div class="sub">${sub}</div></div></header>`; }
+
+function renderSetup(){
+  const saved = load();
+  app.innerHTML = mast('A Unit 3 review game for 2–3 players: scatterplots, correlation, and regression') + `
+  ${saved && saved.phase!=='results' ? `<div class="banner">A game is in progress on this device (${saved.players.map(p=>esc(p.name)+' '+p.score).join(', ')}). <button class="btn small" id="resume">Resume it</button></div>`:''}
+  <div class="setup">
+    <section class="panel">
+      <div class="eyebrow">Set up</div>
+      <h2 style="font-size:28px;margin:4px 0 16px">Who's playing?</h2>
+      <div class="field"><label>Number of players</label>
+        <div class="seg" id="nseg">${[2,3].map(n=>`<button type="button" data-n="${n}" aria-pressed="${setup.n===n}">${n} players</button>`).join('')}</div></div>
+      ${[0,1,2].map(i=>`<div class="field ${i>=setup.n?'hidden':''}" id="f${i}"><label for="name${i}">Player ${i+1} name</label><input id="name${i}" maxlength="18" placeholder="Player ${i+1}" value="${esc(setup.names[i])}"></div>`).join('')}
+      <div class="field"><label>Game length</label>
+        <div class="seg" id="lseg">${[30,45,60,75].map(n=>`<button type="button" data-l="${n}" aria-pressed="${setup.len===n}">${n} min</button>`).join('')}</div></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px"><button class="btn primary" id="go">Start the game</button></div>
+      <p class="paper-note" style="margin-top:14px">Each player needs a pencil and scratch paper. One device per group.</p>
+    </section>
+    <section class="panel rules">
+      <div class="eyebrow">How to play</div>
+      <h2 style="font-size:28px;margin:4px 0 4px">Rules</h2>
+      <ol>
+        <li>On your turn, pick any tile. <b>1 pt</b> = warm-up, <b>2 pts</b> = apply it, <b>3 pts</b> = test-level. Tiles refill with a new question every time.</li>
+        <li><b>Explain your reasoning out loud before you click an answer.</b> Partners can challenge your thinking, but the choice is yours.</li>
+        <li>Miss it? A partner can <b>steal</b> for half the points (rounded up).</li>
+        <li>Written-answer cards are scored by your partners, using the checklist on the screen.</li>
+        <li><b>Full Spread bonus:</b> the first player to score in all six categories gets +3.</li>
+        <li><b>Team Rounds</b> pop up at the 1/3 and 2/3 marks. Everyone works a full test-style problem on paper, then checks it against the key.</li>
+        <li>When the clock runs out, finish the current turn. The results screen shows which topics your group should review.</li>
+      </ol>
+      <div class="legend">${CATS.map(c=>`<div><span class="dot" style="background:${c.color}"></span><span><b>${c.name}</b><br><span style="color:var(--muted)">${c.blurb}</span></span></div>`).join('')}</div>
+    </section>
+  </div>
+  <details class="panel" style="margin-top:20px" id="teacher"><summary style="cursor:pointer;font-weight:700;font-family:var(--display);font-size:20px">Teacher: check a completion code</summary>
+    <p style="max-width:68ch;color:var(--muted)">Students get a code on the results screen. Type it here to see how long they actually played (paused time doesn't count), how many questions they answered, their accuracy, and the date. Add their names to confirm the code belongs to that group.</p>
+    <div class="field"><label for="tcode">Completion code</label><input id="tcode" placeholder="BF-XXXX-XXXX-XXXX-XXXX" autocomplete="off" class="mono"></div>
+    <div class="field"><label for="tnames">Player names, separated by commas (optional, but needed to confirm the group)</label><input id="tnames" placeholder="Maya, Jordan" autocomplete="off"></div>
+    <button class="btn primary" id="tcheck">Check code</button>
+    <div id="tout" style="margin-top:14px"></div>
+  </details>`;
+  $('#tcheck').onclick=()=>{ const r=checkCode($('#tcode').value,$('#tnames').value); const o=$('#tout');
+    if(!r.ok){ o.innerHTML=`<div class="feedback bad"><h3>Invalid code</h3><p>${r.msg}</p></div>`; return; }
+    const nameLine = r.namesMatch===undefined ? '<p>Add the player names above to confirm the code belongs to this group.</p>' : r.namesMatch ? '<p><b>Names match.</b> This code belongs to this group.</p>' : '<p><b>Names do NOT match.</b> This code came from a different group, or the names were spelled differently. Spacing and capitals are ignored, so check the spelling.</p>';
+    o.innerHTML=`<div class="feedback ${r.namesMatch===false?'bad':'good'}"><h3>Valid code</h3>
+      <p><b>${r.mins} minutes</b> of active play on ${r.date} · ${r.players} players</p>
+      <p>${r.turns} turns · ${r.att} questions scored · ${r.cor} correct (${r.att?Math.round(r.cor/r.att*100):0}%) · ${r.team} of 2 Team Rounds finished</p>${nameLine}</div>`; };
+  $('#nseg').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; keepNames(); setup.n=+b.dataset.n; renderSetup(); };
+  $('#lseg').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; keepNames(); setup.len=+b.dataset.l; renderSetup(); };
+  $('#go').onclick=()=>{ keepNames(); S=freshState(); save(); render(); };
+  const r=$('#resume'); if(r) r.onclick=()=>{ S=saved; if(S.pausedAt==null){ /* treat time away as paused */ } render(); };
+}
+function keepNames(){ for(let i=0;i<3;i++){ const el=$('#name'+i); if(el) setup.names[i]=el.value; } }
+
+function scorebar(){
+  const left = Math.max(0, S.len*60000 - elapsedMs()); const m=Math.floor(left/60000), s=Math.floor(left%60000/1000);
+  const next = S.teamDone<2 ? Math.round(S.len*(S.teamDone+1)/3) : null;
+  return `<div class="scorebar">${S.players.map((p,i)=>`<div class="pcard ${i===S.turn&&S.phase!=='team'?'active':''}" style="--pc:${PCOL[i]}">
+      <div style="min-width:0"><div class="turn">${i===S.turn&&S.phase!=='team'?'Your turn':'&nbsp;'}</div><div class="nm">${esc(p.name)}</div>
+      <div class="pips" title="Categories scored in">${CATS.map(c=>`<i style="${p.cats.includes(c.id)?`background:${c.color};border-color:${c.color}`:''}"></i>`).join('')}</div></div>
+      <div class="sc">${p.score}</div></div>`).join('')}
+    <div class="clock"><div class="row"><span class="t" id="clk">${S.timeUp?'0:00':`${m}:${String(s).padStart(2,'0')}`}</span><button id="pause">${S.pausedAt?'Resume':'Pause'}</button></div>
+      <small>${S.timeUp?'Time is up':S.pausedAt?'Paused':next?`Team Round at ${next} min`:'Final stretch'}</small></div></div>`;
+}
+function bindClock(){ const p=$('#pause'); if(p) p.onclick=()=>{ if(S.pausedAt){ S.pausedTotal += Date.now()-S.pausedAt; S.pausedAt=null; } else S.pausedAt=Date.now(); save(); render(); }; }
+
+function renderBoard(){
+  const p=S.players[S.turn];
+  let banner='';
+  if(S.timeUp) banner=`<div class="banner">Time is up! <button class="btn small" id="toResults">See final results</button></div>`;
+  else if(S.teamPending) banner=`<div class="banner">Team Round time! Everyone works together. <button class="btn small" id="toTeam">Start the Team Round</button></div>`;
+  app.innerHTML = mast('Unit 3 review: scatterplots, correlation, and regression') + scorebar() + banner + `
+   <div class="board">${CATS.map(c=>{ const st=S.stats[c.id]; return `<div class="col" style="--cc:${c.color}">
+      <div class="colhead"><b><span class="dot" style="background:${c.color}"></span>${c.name}</b><span>${c.blurb}</span><span class="acc">${st.att?`group: ${st.cor}/${st.att} correct`:'not tried yet'}</span></div>
+      ${TIERS.map(t=>`<button class="tile" data-c="${c.id}" data-t="${t.v}" ${S.timeUp||S.teamPending?'disabled':''} aria-label="${c.name}, ${t.v} points"><span class="v">${t.v}</span><span class="l">${t.l}</span></button>`).join('')}
+    </div>`; }).join('')}</div>
+   <p class="tip"><b style="color:${PCOL[S.turn]}">${esc(p.name)}</b>, pick a tile. Tip: the categories still missing from your dots are the ones to try for the Full Spread bonus. <button class="btn small" id="endEarly" style="margin-left:8px">End game now</button></p>`;
+  bindClock();
+  app.querySelectorAll('.tile').forEach(b=>b.onclick=()=>{ S.q = makeQuestion(b.dataset.c, +b.dataset.t); S.q.state={}; S.phase='question'; save(); render(); });
+  const t=$('#toTeam'); if(t) t.onclick=()=>{ S.team=makeTeam(); S.team.scores=S.players.map(()=>[]); S.team.revealed=false; S.phase='team'; S.teamPending=false; save(); render(); };
+  const r=$('#toResults'); if(r) r.onclick=()=>{ S.phase='results'; save(); render(); };
+  $('#endEarly').onclick=()=>{ const b=$('#endEarly'); if(b.dataset.armed){ S.phase='results'; save(); render(); } else { b.dataset.armed=1; b.textContent='Tap again to end'; } };
+}
+
+function renderQuestion(){
+  const q=S.q, c=CATS.find(x=>x.id===q.cat), st=q.state, p=S.players[S.turn];
+  const pts=q.tier;
+  let body='';
+  if(q.type==='mc'){
+    body = `<div class="choices">${q.choices.map((ch,i)=>{ let cls=''; if(st.done&&i===q.ans) cls='right'; else if((st.wrong||[]).includes(i)) cls='wrong';
+      return `<button class="choice ${cls}" data-i="${i}" ${st.done||(st.wrong||[]).includes(i)||st.awaitSteal?'disabled':''}><span class="k">${'ABCD'[i]}</span><span>${ch}</span></button>`; }).join('')}</div>`;
+  } else if(q.type==='num'){
+    body = `<div class="numrow"><label for="numin" class="paper-note">Your answer${q.unit&&q.unit!=='$'?` (${esc(q.unit)})`:''}:</label><input id="numin" inputmode="decimal" autocomplete="off" ${st.done||st.awaitSteal?'disabled':''} value="${esc(st.last||'')}"><button class="btn primary" id="check" ${st.done||st.awaitSteal?'disabled':''}>Check</button></div>
+      <p class="paper-note">Work it out on paper first. Round to two decimal places if needed.</p>`;
+  } else if(q.type==='dfso'){
+    body = `<div class="selgrid">${Object.keys(q.opts).map(k=>`<label>${k}<select id="sel-${k}" ${st.done?'disabled':''} class="${st.done?(st.sel[k]===q.ans[k]?'right':'wrong'):''}"><option value="">Choose…</option>${q.opts[k].map(o=>`<option ${st.sel&&st.sel[k]===o?'selected':''}>${o}</option>`).join('')}</select></label>`).join('')}</div>
+      ${st.done?'':`<div style="margin-top:12px"><button class="btn primary" id="checkD">Check my description</button></div>`}`;
+  } else if(q.type==='fr'){
+    body = st.revealed ? `<div class="model"><div class="eyebrow">Model answer</div>${q.model}</div>
+      <div class="eyebrow" style="margin-top:8px">Partners: check each thing ${esc(p.name)}'s answer included</div>
+      <div class="rubric">${q.rubric.map((r,i)=>`<label><input type="checkbox" id="rb${i}" ${st.done?'disabled':''} ${(st.checks||[])[i]?'checked':''}><span>${r}</span></label>`).join('')}</div>
+      ${st.done?'':`<div style="margin-top:12px"><button class="btn primary" id="award">Award points</button></div>`}`
+      : `<p class="paper-note">Write your answer on paper or say it out loud to your partners. Then reveal the model answer.</p><button class="btn primary" id="reveal">Reveal model answer</button>`;
+  }
+  let fb='';
+  if(st.awaitSteal){
+    fb = `<div class="feedback bad"><h3>Not quite.</h3><p>Steal chance! A partner can try for <b>${Math.ceil(pts/2)} pt${Math.ceil(pts/2)>1?'s':''}</b>. Talk it over first: why was that answer wrong?</p>
+      <div class="steal">${S.players.map((pl,i)=>i===S.turn?'':`<button class="btn small" data-steal="${i}" style="border-color:${PCOL[i]};color:${PCOL[i]}">${esc(pl.name)} steals</button>`).join('')}<button class="btn small" id="nosteal">No steal, show answer</button></div></div>`;
+  } else if(st.stealer!=null && !st.done){
+    fb = `<div class="feedback"><p><b style="color:${PCOL[st.stealer]}">${esc(S.players[st.stealer].name)}</b> is stealing. ${q.type==='num'?'Enter your answer and check.':'Pick one of the remaining choices.'}</p></div>`;
+  }
+  if(st.done){
+    const good = st.result==='right'||st.result==='steal'||(st.result==='partial');
+    let head = st.result==='right' ? `Correct! +${st.earned} for ${esc(p.name)}` : st.result==='steal' ? `Stolen! +${st.earned} for ${esc(S.players[st.stealer].name)}` : st.result==='partial' ? `Close. +${st.earned} for ${esc(p.name)}` : st.result==='fr' ? `${esc(p.name)} earns +${st.earned}` : 'No points this time';
+    if(q.type==='fr') fb = `<div class="feedback ${st.earned>=2?'good':st.earned?'':'bad'}"><h3>${head}</h3></div>`;
+    else fb = `<div class="feedback ${good?'good':'bad'}"><h3>${head}</h3>${q.type==='num'?`<p>Answer: <b class="mono">${q.unit==='$'?(q.num<0?'−':'')+'$'+fmt(Math.abs(q.num),0):sgn(q.num,2)+' '+esc(q.unit)}</b></p>`:''}<p>${q.ex||''}</p>${q.work?`<div class="work">${esc(q.work)}</div>`:''}</div>`;
+    if(st.bonus) fb += `<div class="feedback good" style="margin-top:10px"><h3>Full Spread bonus! +3 for ${esc(st.bonus)}</h3><p>Scored in all six categories.</p></div>`;
+  }
+  app.innerHTML = mast('Unit 3 review: scatterplots, correlation, and regression') + scorebar() + `
+   <article class="qcard" style="--cc:${c.color}">
+     <div class="qhead"><span class="cat"><span class="dot" style="background:${c.color};margin:0"></span>${c.name} · ${TIERS[q.tier-1].l}</span><span class="who"><span style="color:${PCOL[S.turn]}">${esc(p.name)}</span> · worth ${pts} pt${pts>1?'s':''}</span></div>
+     <div class="qbody ${q.vis?'has-vis':''}">
+       <div style="display:grid;gap:14px;min-width:0"><div class="prompt">${q.prompt}</div>${body}${fb}</div>
+       ${q.vis?`<div class="vis">${q.vis}</div>`:''}
+     </div>
+     <div class="actions">${st.done?`<button class="btn primary" id="next">Next turn →</button>`:''}</div>
+   </article>`;
+  bindClock();
+  // MC
+  app.querySelectorAll('.choice').forEach(b=>b.onclick=()=>answer(+b.dataset.i));
+  const ch=$('#check'); if(ch){ const go=()=>{ const v=parseNum($('#numin').value); if(isNaN(v)) { $('#numin').focus(); return; } st.last=$('#numin').value; answer(v); }; ch.onclick=go; $('#numin').onkeydown=e=>{ if(e.key==='Enter') go(); }; if(!st.done) $('#numin').focus(); }
+  const cd=$('#checkD'); if(cd) cd.onclick=()=>{ st.sel={}; for(const k of Object.keys(q.opts)) st.sel[k]=$('#sel-'+k).value; if(Object.values(st.sel).some(v=>!v)) return; const n=Object.keys(q.ans).filter(k=>st.sel[k]===q.ans[k]).length;
+    const earned = n===4?3:n===3?1:0; finish(n===4?'right':n===3?'partial':'wrong', earned, S.turn, n===4); };
+  const rv=$('#reveal'); if(rv) rv.onclick=()=>{ st.revealed=true; save(); render(); };
+  const aw=$('#award'); if(aw) aw.onclick=()=>{ st.checks=q.rubric.map((_,i)=>$('#rb'+i).checked); const n=st.checks.filter(Boolean).length; finish('fr', Math.min(3,n), S.turn, n>=2); };
+  app.querySelectorAll('[data-steal]').forEach(b=>b.onclick=()=>{ st.awaitSteal=false; st.stealer=+b.dataset.steal; if(q.type==='num'){ st.last=''; } save(); render(); });
+  const ns=$('#nosteal'); if(ns) ns.onclick=()=>{ st.awaitSteal=false; finish('wrong',0,null,false,true); };
+  const nx=$('#next'); if(nx) nx.onclick=nextTurn;
+}
+function isRight(q,v){ return q.type==='mc' ? v===q.ans : Math.abs(v-q.num) <= q.tol + Math.abs(q.num)*0.002; }
+function answer(v){
+  const q=S.q, st=q.state;
+  if(st.stealer!=null){ // steal attempt
+    if(isRight(q,v)) finish('steal', Math.ceil(q.tier/2), st.stealer, false, true);
+    else { if(q.type==='mc'){ st.wrong=[...(st.wrong||[]),v]; } finish('wrong',0,null,false,true); }
+    return;
+  }
+  if(isRight(q,v)) finish('right', q.tier, S.turn, true);
+  else { if(q.type==='mc') st.wrong=[...(st.wrong||[]),v]; st.firstWrong=true; recordStat(false); if(S.players.length>1){ st.awaitSteal=true; save(); render(); } else finish('wrong',0,null,false,true); }
+}
+function recordStat(ok){ const s=S.stats[S.q.cat]; s.att++; if(ok) s.cor++; else S.missed.push({cat:S.q.cat, p:S.q.prompt.replace(/<[^>]+>/g,'')}); }
+function finish(result, earned, who, ok, statDone){
+  const q=S.q, st=q.state; st.done=true; st.result=result; st.earned=earned;
+  if(!statDone && !st.firstWrong) recordStat(ok);
+  if(who!=null && earned>0){ const pl=S.players[who]; pl.score+=earned; if(!pl.cats.includes(q.cat)) pl.cats.push(q.cat);
+    if(!pl.bonus && pl.cats.length===6 && !S.players.some(o=>o.bonus)){ pl.bonus=true; pl.score+=3; st.bonus=pl.name; } }
+  save(); render();
+}
+function nextTurn(){
+  S.turn=(S.turn+1)%S.players.length; S.turns++; S.q=null; S.phase='board';
+  const mins = elapsedMs()/60000;
+  if(S.teamDone<2 && mins >= S.len*(S.teamDone+1)/3) S.teamPending=true;
+  if(mins>=S.len) S.timeUp=true;
+  save(); render();
+}
+
+function renderTeam(){
+  const T=S.team, c=CTX.find(x=>x.id===T.ctx);
+  const table=`<table class="data"><thead><tr><th></th><th>${esc(c.xl)}</th><th>${esc(c.yl)}</th></tr></thead><tbody>${T.pts.map((p,i)=>`<tr><td>${T.labels[i]}</td><td>${c.money?'$'+fmt(p[0],0):fmt(p[0],c.xd)}</td><td>${fmt(p[1],c.yd)}</td></tr>`).join('')}</tbody></table>`;
+  const plot=scatterSVG(T.pts,{labels:T.labels,xl:c.xl,yl:c.yl});
+  let lower='';
+  if(!T.revealed){
+    lower = `<div class="actions" style="padding:0"><button class="btn primary" id="tReveal">We're done: reveal the key</button></div>`;
+  } else {
+    lower = `<h3 style="margin-top:8px;font-size:22px">Answer key</h3><ul class="parts">${T.parts.map(pt=>`<li><b class="pl">${pt.k})</b> ${pt.model}</li>`).join('')}</ul>
+      <h3 style="margin-top:12px;font-size:22px">Score yourselves</h3><p class="paper-note">Each player checks what their own paper got right. Partners: verify. Each check is worth 1 point.</p>
+      <div class="pscore">${S.players.map((pl,pi)=>`<div><div class="who" style="color:${PCOL[pi]}">${esc(pl.name)}</div><div class="rubric">${T.parts.flatMap(pt=>pt.rubric.map((r,ri)=>`<label><input type="checkbox" data-p="${pi}" data-k="${pt.k}${ri}" ${T.saved?'disabled':''} ${(T.scores[pi]||[]).includes(pt.k+ri)?'checked':''}><span><b class="mono">${pt.k})</b> ${r}</span></label>`)).join('')}</div></div>`).join('')}</div>
+      <div class="actions" style="padding:12px 0 0">${T.saved?`<button class="btn primary" id="tBack">Back to the board →</button>`:`<button class="btn primary" id="tSave">Add these points</button>`}</div>`;
+  }
+  app.innerHTML = mast('Team Round: a full test-style problem') + scorebar() + `
+   <section class="panel">
+     <div class="eyebrow">Team Round ${S.teamDone+1} of 2 · about 8 minutes</div>
+     <h2 style="font-size:28px;margin:4px 0 6px">Work it like the real test</h2>
+     <p style="max-width:68ch;margin:0 0 16px">Everyone answers on their own paper. You may talk it through together, but write your own answers in full sentences. The trendline is <span class="mono" style="background:var(--paper);padding:2px 8px;border-radius:6px">${T.eq}</span>, where x = ${esc(c.x)} and ŷ = predicted ${esc(c.y)}.</p>
+     <div class="team-grid"><div style="display:grid;gap:14px;min-width:0"><div style="overflow-x:auto">${table}</div>
+       <ol class="parts">${T.parts.map(pt=>`<li><b class="pl">${pt.k})</b> ${pt.q}</li>`).join('')}</ol></div>
+       <div class="vis">${plot}</div></div>
+     <div style="margin-top:18px">${lower}</div>
+   </section>`;
+  bindClock();
+  const r=$('#tReveal'); if(r) r.onclick=()=>{ T.revealed=true; save(); render(); };
+  app.querySelectorAll('input[data-p]').forEach(cb=>cb.onchange=()=>{ const pi=+cb.dataset.p, k=cb.dataset.k; const arr=T.scores[pi]||(T.scores[pi]=[]); if(cb.checked){ if(!arr.includes(k)) arr.push(k); } else T.scores[pi]=arr.filter(x=>x!==k); save(); });
+  const sv=$('#tSave'); if(sv) sv.onclick=()=>{ S.players.forEach((pl,pi)=>pl.score+=(T.scores[pi]||[]).length); T.saved=true; S.teamDone++; save(); render(); };
+  const bk=$('#tBack'); if(bk) bk.onclick=()=>{ S.phase='board'; S.team=null; if(elapsedMs()/60000>=S.len) S.timeUp=true; save(); render(); };
+}
+
+function renderResults(){
+  const order=S.players.map((p,i)=>({...p,i})).sort((a,b)=>b.score-a.score);
+  const rows=CATS.map(c=>({c, ...S.stats[c.id], pct: S.stats[c.id].att? S.stats[c.id].cor/S.stats[c.id].att : null}));
+  const weak=rows.filter(r=>r.att).sort((a,b)=>a.pct-b.pct).slice(0,2).filter(r=>r.pct<0.8);
+  const untried=rows.filter(r=>!r.att);
+  const cc=makeCode();
+  app.innerHTML = mast('Final results') + `
+   <div class="results">
+     <section class="panel"><div class="eyebrow">Final scores</div><h2 style="font-size:30px;margin:4px 0 14px">${order[0].score===order[1]?.score?'It\'s a tie at the top!':esc(order[0].name)+' wins!'}</h2>
+       <div class="podium">${order.map((p,k)=>`<div class="r" style="--pc:${PCOL[p.i]}"><b>${k+1}. ${esc(p.name)}</b><span class="mono" style="font-size:26px;font-weight:700;color:${PCOL[p.i]}">${p.score}</span></div>`).join('')}</div>
+       <p class="paper-note" style="margin-top:14px">${S.turns} turns played · ${S.teamDone} Team Round${S.teamDone===1?'':'s'}</p>
+       <div style="margin-top:18px;border:2px dashed var(--accent);border-radius:12px;padding:14px 16px">
+         <div class="eyebrow">Completion code: write this down and turn it in</div>
+         <div class="mono" style="font-size:clamp(20px,3.4vw,28px);font-weight:700;letter-spacing:.04em;margin:6px 0;word-break:break-all">${cc.code}</div>
+         <div class="paper-note">Also write the names exactly as entered: ${S.players.map(p=>esc(p.name)).join(', ')}. ${cc.mins} min played · ${cc.att} questions · ${cc.cor} correct · ${S.teamDone}/2 Team Rounds</div>
+       </div>
+       <h3 style="margin-top:18px;font-size:22px">Before you leave</h3>
+       <p style="max-width:62ch">Each player: write on your paper one thing you will remember for the test, and one question you still have.</p>
+     </section>
+     <section class="panel"><div class="eyebrow">Your group's review list</div><h2 style="font-size:26px;margin:4px 0 14px">How each topic went</h2>
+       <div class="bars">${rows.map(r=>`<div class="bar" style="--cc:${r.c.color}"><span>${r.c.name}</span><div class="track"><div class="fill" style="width:${r.pct==null?0:Math.round(r.pct*100)}%"></div></div><span class="mono">${r.att?`${r.cor}/${r.att}`:'—'}</span></div>`).join('')}</div>
+       ${weak.length||untried.length?`<p style="margin-top:14px"><b>Study these before the test:</b> ${[...weak.map(r=>r.c.name), ...untried.map(r=>r.c.name+' (not tried)')].join(', ')}.</p>`:'<p style="margin-top:14px"><b>Strong work across every topic.</b></p>'}
+       ${S.missed.length?`<h3 style="margin-top:12px;font-size:18px">Questions your group missed</h3><ol class="missed">${S.missed.slice(-8).map(m=>`<li><b>${CATS.find(c=>c.id===m.cat).name}:</b> ${esc(m.p.length>140?m.p.slice(0,140)+'…':m.p)}</li>`).join('')}</ol>`:''}
+     </section>
+   </div>
+   <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" id="again">New game</button><button class="btn" id="back">Back to the board</button></div>`;
+  if(!S.pausedAt){ S.pausedAt=Date.now(); save(); }
+  $('#again').onclick=()=>{ clearSave(); S=null; render(); };
+  $('#back').onclick=()=>{ if(S.pausedAt){ S.pausedTotal+=Date.now()-S.pausedAt; S.pausedAt=null; } S.phase='board'; S.timeUp=false; S.len += 10; save(); render(); };
+}
+
+function render(){
+  if(!S) return renderSetup();
+  if(S.phase==='board') renderBoard(); else if(S.phase==='question') renderQuestion(); else if(S.phase==='team') renderTeam(); else renderResults();
+  window.scrollTo({top:0});
+}
+setInterval(()=>{ if(!S || S.phase==='results' || S.pausedAt) return; const el=$('#clk'); if(!el) return;
+  const left=Math.max(0,S.len*60000-elapsedMs()); el.textContent = `${Math.floor(left/60000)}:${String(Math.floor(left%60000/1000)).padStart(2,'0')}`;
+  if(S.phase==='board' && !S.timeUp && left===0){ S.timeUp=true; save(); render(); }
+  if(S.phase==='board' && !S.teamPending && S.teamDone<2 && elapsedMs()/60000 >= S.len*(S.teamDone+1)/3){ S.teamPending=true; save(); render(); }
+},1000);
+render();
+</script>
+</body>
+</html>
