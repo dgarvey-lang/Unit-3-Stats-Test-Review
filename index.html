@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Best Fit Showdown</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -136,7 +137,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .steal{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
 .actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;padding:0 20px 20px}
 .rubric{display:grid;gap:8px;margin-top:8px}
-.rubric label{display:flex;gap:10px;align-items:flex-start;background:var(--card);border:1.5px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer}
+.rubric label{display:flex;gap:10px;align-items:flex-start;background:var(--card);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer}
 .rubric input{width:20px;height:20px;margin-top:3px;flex:none;accent-color:var(--accent)}
 .model{background:var(--card);border-left:4px solid var(--good);padding:10px 14px;border-radius:0 8px 8px 0;margin:8px 0}
 .selgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:6px}
@@ -144,7 +145,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .selgrid label{display:flex;flex-direction:column;gap:4px;font-weight:700}
 .selgrid select{font:inherit;font-weight:400;padding:8px 10px;border:2px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink)}
 .selgrid select.right{border-color:var(--good)} .selgrid select.wrong{border-color:var(--bad)}
-.paper-note{font-size:15px;color:var(--muted);display:flex;gap:8px;align-items:center}
+.paper-note{font-size:15px;color:var(--ink);display:flex;gap:8px;align-items:center}
 
 /* team round */
 .team-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
@@ -153,7 +154,7 @@ table.data{border-collapse:collapse;font-family:var(--mono);font-variant-numeric
 table.data th,table.data td{border:1.5px solid var(--line);padding:6px 14px;text-align:center}
 table.data th{font-family:var(--body);font-size:14px;background:var(--paper)}
 .parts{display:grid;gap:12px;margin:0;padding-left:0;list-style:none}
-.parts li{background:var(--paper);border-radius:10px;padding:10px 14px}
+.parts li{background:var(--paper);color:var(--ink);border:1.5px solid var(--line);border-radius:10px;padding:10px 14px}
 .parts b.pl{font-family:var(--mono);color:var(--accent)}
 .pscore{display:grid;gap:16px}
 .pscore .who{font-weight:700;font-family:var(--display);font-size:20px}
@@ -593,17 +594,36 @@ const normNames = arr => arr.map(n=>n.toLowerCase().replace(/[^a-z]/g,'')).filte
 const EPOCH = Date.UTC(2026,0,1);
 function dayNum(d=new Date()){ return Math.floor((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())-EPOCH)/86400000); }
 const normOne = n => n.toLowerCase().replace(/[^a-z]/g,'');
+/* Short code: 12 base-36 characters (BF-XXXX-XXXX-XXXX) packing minutes, rounds, players, day, and answered/correct per player, plus a check value and a names check. */
+const FIELDS=[['mins',6],['team',2],['np',2],['day',5],['a0',5],['c0',5],['a1',5],['c1',5],['a2',5],['c2',5]];
 function makeCode(){
   const mins=Math.floor(elapsedMs()/60000);
   const ps=[...S.players].sort((a,b)=>normOne(a.name)<normOne(b.name)?-1:normOne(a.name)>normOne(b.name)?1:0);
-  let payload = b36(mins,2)+b36(S.teamDone,1)+b36(S.players.length,1)+b36(dayNum(),2);
-  for(let i=0;i<3;i++){ const p=ps[i]; payload += b36(p?p.ans:0,2)+b36(p?p.cor:0,2); }
-  const chk = b36(fnv(payload+SALT)%46656,3), nm = b36(fnv(normNames(S.players.map(p=>p.name))+SALT)%46656,3);
-  const all = payload+chk+nm;
+  const v={mins:Math.min(63,Math.round(mins/2)), team:S.teamDone, np:S.players.length-1, day:dayNum()%32};
+  for(let i=0;i<3;i++){ const p=ps[i]; v['a'+i]=Math.min(31,p?p.ans:0); v['c'+i]=Math.min(31,p?p.cor:0); }
+  let P=0n; for(const [k,w] of FIELDS) P=(P<<BigInt(w))|BigInt(v[k]);
+  const chk=fnv(P.toString(36)+SALT)%512, nm=fnv(normNames(S.players.map(p=>p.name))+SALT)%256;
+  const all=((P<<17n)|(BigInt(chk)<<8n)|BigInt(nm)).toString(36).toUpperCase().padStart(12,'0');
   return {code:'BF-'+all.match(/.{4}/g).join('-'), mins};
 }
 function checkCode(raw, namesRaw){
   const c=raw.toUpperCase().replace(/[^0-9A-Z]/g,'').replace(/^BF/,'');
+  if(c.length===24) return checkCodeLegacy(c, namesRaw);
+  if(c.length!==12) return {ok:false, msg:'That code is the wrong length. It should look like BF-XXXX-XXXX-XXXX (12 characters after BF).'};
+  let V=0n; for(const ch of c) V=V*36n+BigInt(parseInt(ch,36));
+  const nm=Number(V&255n), chk=Number((V>>8n)&511n), P=V>>17n;
+  if(fnv(P.toString(36)+SALT)%512!==chk) return {ok:false, msg:'Not a valid code. It may have been mistyped or made up.'};
+  const v={}; let x=P; for(const [k,w] of [...FIELDS].reverse()){ v[k]=Number(x&((1n<<BigInt(w))-1n)); x>>=BigInt(w); }
+  const today=dayNum(), dn=today-(((today-v.day)%32)+32)%32;
+  const d=new Date(EPOCH + dn*86400000), players=v.np+1;
+  const out={ok:true, mins:v.mins*2, team:v.team, players, date:d.toLocaleDateString('en-US',{timeZone:'UTC',weekday:'short',month:'short',day:'numeric',year:'numeric'}), rows:[]};
+  for(let i=0;i<players;i++) out.rows.push({ans:v['a'+i], cor:v['c'+i]});
+  if(namesRaw.trim()){ const names=namesRaw.split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean); out.namesMatch = fnv(normNames(names)+SALT)%256===nm;
+    if(out.namesMatch){ const sorted=[...names].sort((a,b)=>normOne(a)<normOne(b)?-1:normOne(a)>normOne(b)?1:0); out.rows.forEach((r,i)=>r.name=sorted[i]); } }
+  return out;
+}
+/* Older 24-character codes (BF-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX) still check. */
+function checkCodeLegacy(c, namesRaw){
   if(c.length!==24) return {ok:false, msg:'That code is the wrong length. It should look like BF-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX (24 characters after BF).'};
   const payload=c.slice(0,18), chk=c.slice(18,21), nm=c.slice(21,24);
   if(b36(fnv(payload+SALT)%46656,3)!==chk) return {ok:false, msg:'Not a valid code. It may have been mistyped or made up.'};
@@ -680,7 +700,7 @@ function renderSetup(){
   </div>
   <details class="panel" style="margin-top:20px" id="teacher"><summary style="cursor:pointer;font-weight:700;font-family:var(--display);font-size:20px">Teacher: check a completion code</summary>
     <p style="max-width:68ch;color:var(--muted)">Students get a code on the results screen. Type it here to see how many questions each student answered on their own turns and how many they got right, plus the date, active minutes played, and Team Rounds finished. Add their names to confirm the code belongs to that group.</p>
-    <div class="field"><label for="tcode">Completion code</label><input id="tcode" placeholder="BF-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" autocomplete="off" class="mono"></div>
+    <div class="field"><label for="tcode">Completion code</label><input id="tcode" placeholder="BF-XXXX-XXXX-XXXX" autocomplete="off" class="mono"></div>
     <div class="field"><label for="tnames">Player names, separated by commas (optional, but needed to confirm the group)</label><input id="tnames" placeholder="Maya, Jordan" autocomplete="off"></div>
     <button class="btn primary" id="tcheck">Check code</button>
     <div id="tout" style="margin-top:14px"></div>

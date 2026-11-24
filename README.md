@@ -20,7 +20,7 @@ segmented bar graphs, slope and intercept, residuals and predictions). Each stud
 A code only appears once every player has answered at least 15 questions on their own turns, right or wrong.
 Steals and Team Rounds earn points but don't count toward the 15.
 
-The results screen shows a code like `BF-0022-920F-0A0F-0A00-00JJ-O7BI`. Students write it down with their names.
+The results screen shows a code like `BF-3K9Q-0T2M-X7BD`. Students write it down with their names.
 To check one, open the game, expand **"Teacher: check a completion code"** on the start screen, and enter the code and names.
 It shows, for each student, how many questions they answered, how many they got correct, their percent, and whether they met
 the 15-question minimum, plus the date, active minutes played, and Team Rounds finished.
