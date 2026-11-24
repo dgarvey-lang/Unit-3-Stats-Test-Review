@@ -24,7 +24,3 @@ The results screen shows a code like `BF-3K9Q-0T2M-X7BD`. Students write it down
 To check one, open the game, expand **"Teacher: check a completion code"** on the start screen, and enter the code and names.
 It shows, for each student, how many questions they answered, how many they got correct, their percent, and whether they met
 the 15-question minimum, plus the date, active minutes played, and Team Rounds finished.
-
-## Unit 2 warm-up (quadratics)
-A separate warm-up for the Unit 2 test (solving quadratic equations) is in `unit-2-warmup/`. It covers four problem types: solve by graphing, solve two ways, projectile motion, and area. Students can work in partners or solo. It has a Desmos link and a built-in scratch board.
-Link: https://dgarvey-lang.github.io/Unit-3-Stats-Test-Review/unit-2-warmup/
