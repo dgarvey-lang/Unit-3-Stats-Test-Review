@@ -490,7 +490,7 @@ const GEN = {
  'df-3':[
    ()=>{ const form=Math.random()<.25?'curved':'linear'; const dir=pick([1,-1]); const st=form==='curved'?'strong':pick(['strong','moderate','weak']); const out=Math.random()<.5;
      const g=genScatter({dir,form,strength:st,outlier:out});
-     return {type:'dfso', vis:scatterSVG(g.pts), prompt:'Describe this scatterplot completely. Choose the correct <b>Direction, Form, Strength,</b> and <b>Outliers</b>. (This is what test question 7a asks for.)',
+     return {type:'dfso', vis:scatterSVG(g.pts), prompt:'Describe this scatterplot completely. Choose the correct <b>Direction, Form, Strength,</b> and <b>Outliers</b>.',
        ans:{Direction:dir>0?'Positive':'Negative', Form:form==='linear'?'Linear':'Curved', Strength:cap(st), Outliers:out?'One clear outlier':'No outliers'},
        opts:{Direction:['Positive','Negative','No direction'],Form:['Linear','Curved'],Strength:['Strong','Moderate','Weak'],Outliers:['No outliers','One clear outlier']},
        ex:`A full answer sounds like: "There is a ${st}, ${dir>0?'positive':'negative'}, ${form==='linear'?'linear':'curved'} relationship ${out?'with one outlier that falls far from the pattern':'with no obvious outliers'}." On the test, write it in context using the variable names.`}; } ],
